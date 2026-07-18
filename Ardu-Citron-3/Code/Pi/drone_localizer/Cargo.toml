@@ -7,3 +7,4 @@ edition = "2021"
 opencv = { version = "0.92", default-features = false, features = ["calib3d", "imgcodecs", "imgproc", "aruco", "video"] }
 image = "0.25"
 glob = "0.3" # Ajoute cette ligne si elle n'y est pas
+json = "0.12.4"

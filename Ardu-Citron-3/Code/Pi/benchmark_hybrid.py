@@ -3,12 +3,13 @@ import subprocess
 import json
 import numpy as np
 import sys
+import matplotlib.pyplot as plt
 
 DATASET_DIR = "/mnt/1to/ODB/Ardu-Citron-3/Sol/Markers_5/Dataset"
 RUST_BIN = "./drone_localizer/target/release/drone_localizer"
-TOTAL_IMAGES = 500  
+TOTAL_IMAGES = 7500  
 
-print(f"🚀 Lancement du benchmark corrigé selon audit (Sub-pixel + Rodrigues + Check Biais)...")
+print(f"🚀 Lancement du benchmark visuel (Kalman Vision + IMU)...")
 
 process = subprocess.Popen(
     [RUST_BIN, DATASET_DIR, str(TOTAL_IMAGES)],
@@ -16,10 +17,13 @@ process = subprocess.Popen(
     text=True
 )
 
-errors_norm_3d = []
-errors_z_pure = []
-errors_pitch = []
+frames = []
+true_dists, est_dists = [], []
+true_rolls, est_rolls = [], []
+true_pitchs, est_pitchs = [], []
+true_yaws, est_yaws = [], []
 execution_times = []
+
 count = 0
 
 for line in process.stdout:
@@ -35,41 +39,95 @@ for line in process.stdout:
         
         if line.startswith("DATA|"):
             parts = line.split("|")
-            filename = parts[1]
-            rust_norm_3d = float(parts[2])
-            rust_z_pure = float(parts[3])
-            rust_pitch = float(parts[4])
-            rust_time_ms = float(parts[5])
+            file_name = parts[1]
+            est_dist = float(parts[2])
+            est_roll = float(parts[4])
+            est_pitch = float(parts[5])
+            est_yaw = float(parts[6])
+            exec_ms = float(parts[7])
             
-            execution_times.append(rust_time_ms)
+            json_name = file_name.replace(".png", ".json")
+            json_path = os.path.join(DATASET_DIR, json_name)
             
-            json_path = os.path.join(DATASET_DIR, filename.replace(".png", ".json"))
             if os.path.exists(json_path):
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    truth = json.load(f)
+                with open(json_path, "r") as f:
+                    meta = json.load(f)
                 
-                true_dist = truth["distance_m"]
-                true_pitch = truth["pitch_deg"] # 🚀 On utilise la vraie valeur signée !
+                true_dist = meta.get("distance_m", 0.0)
+                true_roll = meta.get("roll_deg", 0.0)
+                true_pitch = meta.get("pitch_deg", 0.0)
+                true_yaw = meta.get("yaw_deg", 0.0)
                 
-                # POINT 1 : On évalue les deux méthodes pour détecter le biais systématique
-                errors_norm_3d.append(abs(rust_norm_3d - true_dist))
-                errors_z_pure.append(abs(rust_z_pure - true_dist))
-                errors_pitch.append(abs(rust_pitch - true_pitch))
+                frames.append(count)
+                true_dists.append(true_dist)
+                est_dists.append(est_dist)
+                true_rolls.append(true_roll)
+                est_rolls.append(est_roll)
+                true_pitchs.append(true_pitch)
+                est_pitchs.append(est_pitch)
+                true_yaws.append(true_yaw)
+                est_yaws.append(est_yaw)
+                execution_times.append(exec_ms)
 
 process.wait()
 print("\n")
 
+if not execution_times:
+    print("❌ Aucune donnée valide reçue du binaire Rust.")
+    sys.exit(1)
+
+def angular_mae(y_true, y_pred):
+    diff = np.abs(np.array(y_true) - np.array(y_pred))
+    return np.mean(np.where(diff > 180, 360 - diff, diff))
+
+mae_dist = np.mean(np.abs(np.array(est_dists) - np.array(true_dists)))
+mae_roll = angular_mae(true_rolls, est_rolls)
+mae_pitch = angular_mae(true_pitchs, est_pitchs)
+mae_yaw = angular_mae(true_yaws, est_yaws)
+
+print("📊 Génération des graphiques...")
+fig, axs = plt.subplots(4, 1, figsize=(12, 16))
+
+axs[0].plot(frames, true_dists, label="Vérité Terrain (Simulateur)", color="black", linestyle="--")
+axs[0].plot(frames, est_dists, label="Estimation Réalignée (Rust)", color="blue", alpha=0.7)
+axs[0].set_title(f"Distance relative Drone-Marqueur (MAE: {mae_dist:.3f} m)", fontsize=13)
+axs[0].set_ylabel("Distance (m)")
+axs[0].legend()
+axs[0].grid(True, linestyle=":", alpha=0.6)
+
+axs[1].plot(frames, true_rolls, label="Vérité Terrain", color="black", linestyle="--")
+axs[1].plot(frames, est_rolls, label="Estimation Réalignée", color="red", alpha=0.7)
+axs[1].set_title(f"Suivi du Roulis / Roll (MAE: {mae_roll:.2f}°)", fontsize=13)
+axs[1].set_ylabel("Angle (°)")
+axs[1].legend()
+axs[1].grid(True, linestyle=":", alpha=0.6)
+
+axs[2].plot(frames, true_pitchs, label="Vérité Terrain", color="black", linestyle="--")
+axs[2].plot(frames, est_pitchs, label="Estimation Réalignée", color="green", alpha=0.7)
+axs[2].set_title(f"Suivi du Tangage / Pitch (MAE: {mae_pitch:.2f}°)", fontsize=13)
+axs[2].set_ylabel("Angle (°)")
+axs[2].legend()
+axs[2].grid(True, linestyle=":", alpha=0.6)
+
+axs[3].plot(frames, true_yaws, label="Vérité Terrain", color="black", linestyle="--")
+axs[3].plot(frames, est_yaws, label="Estimation Réalignée", color="purple", alpha=0.7)
+axs[3].set_title(f"Suivi du Lacet / Yaw (MAE: {mae_yaw:.2f}°)", fontsize=13)
+axs[3].set_xlabel("Nombre de Frames du Dataset")
+axs[3].set_ylabel("Angle (°)")
+axs[3].legend()
+axs[3].grid(True, linestyle=":", alpha=0.6)
+
+plt.tight_layout()
+output_file = "benchmark_performance_dashboard.png"
+plt.savefig(output_file, dpi=200)
+print(f"✅ Tableau de bord haute résolution sauvegardé sous : {output_file}\n")
+
 print("==================================================")
-print("🎯 RÉSULTATS DU SYSTÈME APRÈS AUDIT")
+print("🎯 BILAN DES ERREURS MOYENNES RÉELLES (MAE)")
 print("==================================================")
-if execution_times:
-    print(f"⚡ Temps calcul (Sub-pixel)      : {np.mean(execution_times):.3f} ms / image")
-    print(f"🏎️  Cadence théorique PC          : {1000.0 / np.mean(execution_times):.1f} FPS")
-    print("--------------------------------------------------")
-    print(f"📏 Erreur si GT = Norme 3D (MAE) : {np.mean(errors_norm_3d):.4f} mètres")
-    print(f"📏 Erreur si GT = Axe Z pur (MAE): {np.mean(errors_z_pure):.4f} mètres")
-    print("--------------------------------------------------")
-    print(f"📐 Précision Pitch Signé (MAE)   : {np.mean(errors_pitch):.3f} degrés")
-else:
-    print("❌ Aucune donnée collectée.")
-print("==================================================\n")
+print(f"⚡ Vitesse          : {np.mean(execution_times):.3f} ms/frame ({1000.0/np.mean(execution_times):.1f} FPS)")
+print(f"📏 Distance Z       : {mae_dist:.4f} m")
+print(f"📐 Roll (Roulis)    : {mae_roll:.3f}°")
+print(f"📐 Pitch (Tangage)  : {mae_pitch:.3f}°")
+print(f"📐 Yaw (Lacet)      : {mae_yaw:.3f}°")
+print("==================================================")

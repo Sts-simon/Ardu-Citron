@@ -1,0 +1,2 @@
+~/Applications/arduino-ide/arduino-ide*.AppImage
+source OBD_venv/bin/activate

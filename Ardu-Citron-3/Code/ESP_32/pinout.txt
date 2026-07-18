@@ -1,0 +1,35 @@
+=========================================
+      BROCHAGE ESP32 - PROJET DRONE
+=========================================
+
+I2C
+----
+SDA : GPIO23
+SCL : GPIO22
+
+UART0 (Télémetrie / Debug)
+--------------------------
+TX : TX0 (GPIO1)
+RX : RX0 (GPIO3)
+
+Entrées PWM (Récepteur RC)
+--------------------------
+PWM1 : GPIO34
+PWM2 : GPIO35 
+PWM3 : GPIO32
+PWM4 : GPIO33
+
+Sorties PWM
+-----------
+ESC (Moteur) : GPIO25
+
+Servo 1 : GPIO26
+Servo 2 : GPIO27
+Servo 3 : GPIO14
+
+Buzzer
+-------
+Buzzer passif : GPIO13
+
+
+

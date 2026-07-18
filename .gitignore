@@ -1,0 +1,15 @@
+# Rust
+target/
+**/target/
+
+# Python
+venv/
+.venv/
+OBD_venv/
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
+
+Ardu-Citron-3/Sol/

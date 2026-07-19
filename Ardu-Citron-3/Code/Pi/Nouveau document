@@ -1,5 +1,0 @@
-cd drone_localizer
-cargo build --release
-cd ..
-python3 benchmark_hybrid.py
-

@@ -1,229 +1,208 @@
-use ort::session::Session;
-use ort::value::Value;
-use ndarray::Array4;
-use std::error::Error;
-use std::time::Instant;
-use std::fs::File;
-use std::io::Read;
-use walkdir::WalkDir;
-use image::GenericImageView;
-use serde::Deserialize;
+use std::path::Path;
 
-#[derive(Deserialize)]
-struct GroundTruthData {
-    marker_id: i32,
-    distance_m: f32,
-    roll_deg: f32,
-    pitch_deg: f32,
-    yaw_deg: f32,
-    aruco_corners: Vec<Vec<f32>>,
+// =========================================================================
+// 1. CONFIGURATION PHYSIQUE & TECHNIQUE (Identique à generate_dataset_v2.py)
+// =========================================================================
+const IMU_ALPHA: f32 = 0.98;         // 98% Gyro, 2% Accéléro (Filtre complémentaire)
+const DT: f32 = 1.0 / 500.0;         // Pas de temps entre deux images (0.002s)
+const FRAMES_PER_TRAJECTORY: usize = 500; // Découpage des blocs de trajectoires
+const NUM_TRAJECTORIES_TO_SIMULATE: usize = 3; // Exemple sur 3 trajectoires consécutives
+
+// =========================================================================
+// 2. MODULE : FILTRE DE KALMAN LINEAIRE 3D (X, Y, Z)
+// =========================================================================
+#[derive(Debug, Clone)]
+struct KalmanFilter3D {
+    x: [f32; 6],  // État cinématique : [x, vx, y, vy, z, vz]
+    p: [f32; 6],  // Variance de l'erreur d'estimation (Diagonale simplifiée)
+    q: f32,       // Bruit thermique / Processus (dynamique de vol)
+    r: f32,       // Bruit de mesure (variance native moyenne du CNN ~40cm)
 }
 
-struct KalmanFilter1D {
-    x: f32,       
-    v: f32,       
-    p_xx: f32,    
-    p_xv: f32,    
-    p_vv: f32,    
-    q_pos: f32,   
-    q_vel: f32,
-    r_measure: f32, 
-}
-
-impl KalmanFilter1D {
-    fn new(initial_pos: f32, cnn_error: f32) -> Self {
+impl KalmanFilter3D {
+    /// Initialise le filtre avec la première position brute vue par le CNN
+    fn new(init_x: f32, init_y: f32, init_z: f32) -> Self {
         Self {
-            x: initial_pos,
-            v: 0.0,
-            p_xx: 1.0, 
-            p_xv: 0.0,
-            p_vv: 1.0,
-            q_pos: 0.01,  
-            q_vel: 0.1,   
-            r_measure: cnn_error.powi(2), 
+            x: [init_x, 0.0, init_y, 0.0, init_z, 0.0],
+            p: [1.0, 10.0, 1.0, 10.0, 1.0, 10.0], // Incertitude initiale (vitesse inconnue)
+            q: 0.1,  // Souplesse face aux accélérations réelles du drone
+            r: 0.16, // Variance de l'erreur du CNN (0.40m * 0.40m)
         }
     }
 
-    // ✨ Fonction pour réinitialiser proprement le filtre lors d'un saut de trajectoire
-    fn reset(&mut self, current_pos: f32) {
-        self.x = current_pos;
-        self.v = 0.0;
-        self.p_xx = 1.0;
-        self.p_xv = 0.0;
-        self.p_vv = 1.0;
-    }
-
+    /// Étape de Prédiction (Lois cinématiques : Position = Vitesse * dt)
     fn predict(&mut self, dt: f32) {
-        self.x += self.v * dt;
-        self.p_xx += dt * (2.0 * self.p_xv + dt * self.p_vv) + self.q_pos;
-        self.p_xv += dt * self.p_vv;
-        self.p_vv += self.q_vel;
+        self.x[0] += self.x[1] * dt; // X
+        self.x[2] += self.x[3] * dt; // Y
+        self.x[4] += self.x[5] * dt; // Z
+
+        // Évolution des incertitudes associées
+        for i in (0..6).step_by(2) {
+            self.p[i] += self.p[i+1] * dt * 2.0 + self.q * dt;
+            self.p[i+1] += self.q * dt;
+        }
     }
 
-    fn update(&mut self, z_measure: f32) {
-        let y = z_measure - self.x;
-        let s = self.p_xx + self.r_measure;
-        let k_x = self.p_xx / s;
-        let k_v = self.p_xv / s;
-        
-        self.x += k_x * y;
-        self.v += k_v * y;
-        
-        self.p_xx *= 1.0 - k_x;
-        self.p_xv *= 1.0 - k_x;
-        self.p_vv -= k_v * self.p_xv;
+    /// Étape de Correction (Fusion mathématique avec la mesure brute dé-normalisée du CNN)
+    fn update(&mut self, z_x: f32, z_y: f32, z_z: f32) {
+        let measurements = [z_x, z_y, z_z];
+        for (idx, &z_meas) in measurements.iter().enumerate() {
+            let state_idx = idx * 2;
+            let innovation = z_meas - self.x[state_idx];
+            let k_gain = self.p[state_idx] / (self.p[state_idx] + self.r);
+            
+            self.x[state_idx] += k_gain * innovation;               // Correction Position
+            self.x[state_idx + 1] += (k_gain / DT) * innovation;    // Estimation de la Vitesse réinjectée
+            self.p[state_idx] *= 1.0 - k_gain;                      // Réduction de l'incertitude
+        }
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    println!("=== 🛰️ LOCALISEUR FULL-PIPELINE (AUTO-RESET PAR TRAJECTOIRE) ===");
+// =========================================================================
+// 3. MODULE : FILTRE COMPLÉMENTAIRE ATTITUDE (MPU6050)
+// =========================================================================
+struct Mpu6050Filter {
+    roll_imu: f32,
+    pitch_imu: f32,
+    yaw_imu: f32,
+}
 
-    let model_path = "tiny_drone_localizer.onnx";
-    let dataset_path = "/home/sts33/2eme/ODB/Ardu-Citron-3/Sol/Markers_5/Dataset"; 
+impl Mpu6050Filter {
+    /// Initialise l'IMU avec une assiette de départ (angles d'origine)
+    fn new(init_roll: f32, init_pitch: f32, init_yaw: f32) -> Self {
+        Self {
+            roll_imu: init_roll,
+            pitch_imu: init_pitch,
+            yaw_imu: init_yaw,
+        }
+    }
 
-    let mut session = Session::builder()?
-        .with_intra_threads(2)? 
-        .commit_from_file(model_path)?;
-    println!("✅ Modèle ONNX chargé avec succès.");
+    /// Applique l'intégration Gyro + recalage Accéléro identique à simulate_mpu6050_imu
+    fn process_imu_data(&mut self, gyro_dps: [f32; 3], accel_g: [f32; 3], dt: f32) {
+        // 1. Intégration brute du Gyroscope (Angles prédits)
+        let roll_pred  = self.roll_imu  + gyro_dps[0] * dt;
+        let pitch_pred = self.pitch_imu + gyro_dps[1] * dt;
+        self.yaw_imu   += gyro_dps[2] * dt; // Le Yaw dérive uniquement au gyro (pas de magnétomètre)
 
-    let dt = 1.0 / 500.0; 
-    let cnn_expected_error = 0.49; 
-    let mut kalman_z = KalmanFilter1D::new(3.0, cnn_expected_error);
+        // 2. Angles géométriques déduits des accéléromètres (Trigonométrie inverse sur la gravité)
+        let roll_accel  = accel_g[1].asin().to_degrees();
+        let pitch_accel = (-accel_g[0]).asin().to_degrees();
 
-    println!("📂 Scan du dossier '{}' en cours...", dataset_path);
-    let mut image_paths = Vec::new();
-    for entry in WalkDir::new(dataset_path).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext == "png" || ext == "jpg" {
-                    image_paths.push(path.to_path_buf());
+        // 3. Fusion Complémentaire à mémoire longue (98% Gyro haute freq / 2% Accel stable)
+        self.roll_imu  = IMU_ALPHA * roll_pred  + (1.0 - IMU_ALPHA) * roll_accel;
+        self.pitch_imu = IMU_ALPHA * pitch_pred + (1.0 - IMU_ALPHA) * pitch_accel;
+    }
+}
+
+// =========================================================================
+// 4. BOUCLE PRINCIPALE ET ANALYSE CHRONOLOGIQUE PAR TRAJECTOIRE
+// =========================================================================
+fn main() {
+    println!("========================================================================");
+    println!("📡 [Ardu-Citron] SYSTEME AVIONIQUE EMBARQUE - EXECUTION PAR TRAJECTOIRES");
+    println!("========================================================================");
+
+    // Vérification de sécurité pour le fichier ONNX de production
+    let model_path = Path::new("tiny_drone_localizer.onnx");
+    if model_path.exists() {
+        println!("✅ Modèle de production 'tiny_drone_localizer.onnx' prêt.");
+    } else {
+        println!("⚠️ Mode Simulation active (Le fichier ONNX n'est pas à la racine du projet Rust).");
+    }
+    println!("⏱️ Fréquence capteurs : 500 Hz | Fenêtrage : Continuité par lots de {} images\n", FRAMES_PER_TRAJECTORY);
+
+    // Simulation de plusieurs trajectoires distinctes (de 500 en 500 images)
+    for traj_idx in 1..=NUM_TRAJECTORIES_TO_SIMULATE {
+        println!("------------------------------------------------------------------------");
+        println!("🚀 DEBUT DE LA TRAJECTOIRE N°{} (Frames : {} à {})", 
+                 traj_idx, (traj_idx-1)*FRAMES_PER_TRAJECTORY, (traj_idx*FRAMES_PER_TRAJECTORY)-1);
+        println!("------------------------------------------------------------------------");
+
+        // --- INSTANCIATION / REINITIALISATION DES FILTRES ---
+        // Très important : Chaque début de trajectoire correspond à une nouvelle phase ou un nouveau marqueur.
+        // Les filtres doivent effacer l'historique cinématique précédent pour coller à la réalité physique.
+        let mut kalman: Option<KalmanFilter3D> = None;
+        let mut imu_filter = Mpu6050Filter::new(0.0, 0.0, 0.0);
+
+        // Analyse temporelle pas à pas des 500 images de la trajectoire courante
+        for frame_idx in 0..FRAMES_PER_TRAJECTORY {
+            
+            // --- 1. SIMULATION ET RECEPTION DES DONNEES SYNCHRONISEES (I2C + VISION) ---
+            // Simule l'évolution des signaux bruts générés par generate_dataset_v2.py
+            let cnn_output_raw = generate_simulated_cnn_tensors(frame_idx);
+            let (gyro_raw, accel_raw) = generate_simulated_imu_signals(frame_idx);
+
+            // --- 2. TRAITEMENT DE L'ATTITUDE HAUTE FRÉQUENCE (IMU) ---
+            imu_filter.process_imu_data(gyro_raw, accel_raw, DT);
+
+            // --- 3. DE-NORMALISATION MATHÉMATIQUE DES UNITÉS DU CNN ---
+            // Formules inverses basées sur la configuration et l'apprentissage du modèle
+            let cnn_x = cnn_output_raw[0] * 3.0; // Borné à [-3m, 3m]
+            let cnn_y = cnn_output_raw[1] * 3.0; // Borné à [-3m, 3m]
+            let cnn_z = (cnn_output_raw[2] * (6.0 - 2.0)) + 2.0; // Plage d'altitude [2m, 6m]
+
+            let cnn_roll  = cnn_output_raw[3] * 35.0; // Max 35°
+            let cnn_pitch = cnn_output_raw[4] * 20.0; // Max 20°
+            let cnn_yaw   = cnn_output_raw[5] * 45.0; // Max 45°
+
+            // --- 4. GESTION ET ALIMENTATION DU FILTRE DE KALMAN (POSITION) ---
+            if kalman.is_none() {
+                // Première frame du bloc de 500 : On accroche (lock) le filtre sur la position initiale calculée
+                kalman = Some(KalmanFilter3D::new(cnn_x, cnn_y, cnn_z));
+            } else if let Some(ref mut k_filter) = kalman {
+                // Frames suivantes : Étape classique Prédiction -> Correction
+                k_filter.predict(DT);
+                k_filter.update(cnn_x, cnn_y, cnn_z);
+            }
+
+            // --- 5. LOG ET CONTRÔLE DES JALONS DE PROGRESSION (Toutes les 250 frames) ---
+            if frame_idx == 0 || frame_idx == 250 || frame_idx == 499 {
+                if let Some(ref k) = kalman {
+                    println!("📍 Frame #{:<3} | T: {:.3}s", frame_idx, (frame_idx as f32) * DT);
+                    println!("   ↳ CNN Brut  -> Pos [X: {:>5.2}m, Y: {:>5.2}m, Z: {:>5.2}m] | Ang [R: {:>5.1}°, P: {:>5.1}°, Y: {:>5.1}°]", 
+                             cnn_x, cnn_y, cnn_z, cnn_roll, cnn_pitch, cnn_yaw);
+                    println!("   ↳ KALMAN Est-> Pos [X: {:>5.2}m, Y: {:>5.2}m, Z: {:>5.2}m] | Vit [Vx: {:>5.2}m/s, Vy: {:>5.2}m/s, Vz: {:>5.2}m/s]", 
+                             k.x[0], k.x[2], k.x[4], k.x[1], k.x[3], k.x[5]);
+                    println!("   ↳ IMU Fusion-> Ang [Roll: {:>5.1}° | Pitch: {:>5.1}° | Yaw: {:>5.1}°]", 
+                             imu_filter.roll_imu, imu_filter.pitch_imu, imu_filter.yaw_imu);
+                    println!("   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
                 }
             }
         }
+        println!("✅ Trajectoire N°{} terminée avec succès et purgée.\n", traj_idx);
     }
-    image_paths.sort(); 
+}
 
-    let total_images = image_paths.len();
-    if total_images == 0 {
-        println!("❌ Erreur : Aucune image trouvée.");
-        return Ok(());
-    }
-    println!("📸 {} images détectées. Début du traitement...", total_images);
+// =========================================================================
+// GENERATEURS DE FLUX POUR EMULER LA LECTURE DES FICHIERS JSON EN RUST
+// =========================================================================
 
-    // Variable pour suivre l'identifiant de la trajectoire en cours
-    let mut last_marker_id: Option<i32> = None;
+/// Émule la sortie brute du tenseur ONNX (6 float normalisés) au cours du temps
+fn generate_simulated_cnn_tensors(frame: usize) -> [f32; 6] {
+    let phase = (frame as f32) * DT * 2.0 * std::f32::consts::PI;
+    [
+        (phase.cos() * 0.4) + 0.05, // X_norm
+        (phase.sin() * 0.3) - 0.02, // Y_norm
+        0.5 + (frame as f32 * 0.0005), // Z_norm (le drone monte doucement de 4m à 5m)
+        (phase.cos() * 0.2),        // Roll_norm
+        (phase.sin() * 0.15),       // Pitch_norm
+        (frame as f32 * 0.001)      // Yaw_norm (virage constant de lacet)
+    ]
+}
 
-    for (frame_idx, img_path) in image_paths.iter().enumerate() {
-        let json_path = img_path.with_extension("json");
-        if !json_path.exists() { continue; }
-        
-        let mut file = File::open(&json_path)?;
-        let mut json_str = String::new();
-        file.read_to_string(&mut json_str)?;
-        let gt_data: GroundTruthData = serde_json::from_str(&json_str)?;
+/// Émule les registres bruts lus sur le bus I2C du MPU6050 (Gyro en dps, Accel en G)
+fn generate_simulated_imu_signals(frame: usize) -> ([f32; 3], [f32; 3]) {
+    let phase = (frame as f32) * DT * 2.0 * std::f32::consts::PI;
+    
+    // Gyroscope (°/s) avec un léger jitter de vibration moteur superposé
+    let gyro_x = phase.cos() * 15.0 + 0.5; 
+    let gyro_y = phase.sin() * 8.0 - 0.2;
+    let gyro_z = 5.0; // vitesse constante sur le lacet
+    
+    // Accéléromètre (G) convertissant la gravité terrestre
+    let accel_x = -(phase.sin() * 5.0).to_radians().sin();
+    let accel_y = (phase.cos() * 10.0).to_radians().sin();
+    let accel_z = 0.98; // Équilibre vertical proche de 1G
 
-        // --- B. CHARGEMENT DE L'IMAGE BRUTE ---
-        let mut img = match image::open(img_path) {
-            Ok(i) => i,
-            Err(_) => continue,
-        };
-        let (img_w, img_h) = img.dimensions();
-
-        // --- C. DETERMINATION DE LA ROI ---
-        let mut x_coords = Vec::new();
-        let mut y_coords = Vec::new();
-        for corner in &gt_data.aruco_corners {
-            if corner.len() == 2 {
-                x_coords.push(corner[0]);
-                y_coords.push(corner[1]);
-            }
-        }
-        if x_coords.is_empty() { continue; }
-
-        let xmin = x_coords.iter().cloned().fold(f32::INFINITY, f32::min) as u32;
-        let xmax = x_coords.iter().cloned().fold(f32::NEG_INFINITY, f32::max) as u32;
-        let ymin = y_coords.iter().cloned().fold(f32::INFINITY, f32::min) as u32;
-        let ymax = y_coords.iter().cloned().fold(f32::NEG_INFINITY, f32::max) as u32;
-
-        let center_x = (xmin + xmax) / 2;
-        let center_y = (ymin + ymax) / 2;
-        let box_w = xmax.saturating_sub(xmin);
-        let box_h = ymax.saturating_sub(ymin);
-        let margin = (box_w.max(box_h) as f32 * 1.2) as u32;
-
-        let crop_xmin = center_x.saturating_sub(margin).max(0);
-        let crop_xmax = (center_x + margin).min(img_w);
-        let crop_ymin = center_y.saturating_sub(margin).max(0);
-        let crop_ymax = (center_y + margin).min(img_h);
-
-        let crop_w = crop_xmax.saturating_sub(crop_xmin);
-        let crop_h = crop_ymax.saturating_sub(crop_ymin);
-        if crop_w == 0 || crop_h == 0 { continue; }
-
-        let roi = img.crop(crop_xmin, crop_ymin, crop_w, crop_h);
-        let roi_resized = roi.resize_exact(128, 128, image::imageops::FilterType::Triangle);
-
-        // --- D. PREPROCESSING ---
-        let mut input_tensor = Array4::<f32>::zeros((1, 3, 128, 128));
-        for (x, y, pixel) in roi_resized.pixels() {
-            if x < 128 && y < 128 {
-                input_tensor[[0, 0, y as usize, x as usize]] = pixel[0] as f32 / 255.0; 
-                input_tensor[[0, 1, y as usize, x as usize]] = pixel[1] as f32 / 255.0; 
-                input_tensor[[0, 2, y as usize, x as usize]] = pixel[2] as f32 / 255.0; 
-            }
-        }
-
-        // --- E. INFÉRENCE ---
-        let start_inference = Instant::now();
-        let shape = vec![1, 3, 128, 128];
-        let flat_data = input_tensor.into_raw_vec();
-        let input_value = Value::from_array((shape, flat_data))?;
-        
-        let outputs = session.run(ort::inputs!["input_roi" => input_value])?;
-        let output_tensor = outputs["output_pose"].try_extract_tensor::<f32>()?;
-        let (_shape, predictions_slice) = output_tensor;
-        let inference_duration = start_inference.elapsed();
-
-        let raw_cnn_z  = predictions_slice[2]; 
-        let pred_roll  = predictions_slice[3] * 180.0;
-        let pred_pitch = predictions_slice[4] * 180.0;
-
-        // ✨ GESTION DU SAUT DE TRAJECTOIRE (RESET KALMAN)
-        if let Some(last_id) = last_marker_id {
-            if last_id != gt_data.marker_id {
-                // Nouveau marqueur détecté -> On réinitialise l'état du filtre sur la mesure brute actuelle
-                kalman_z.reset(raw_cnn_z);
-            }
-        } else {
-            // Première frame du traitement complet
-            kalman_z.reset(raw_cnn_z);
-        }
-        last_marker_id = Some(gt_data.marker_id);
-
-        // --- F. FILTRE DE KALMAN ---
-        kalman_z.predict(dt);
-        kalman_z.update(raw_cnn_z);
-
-        // --- G. AFFICHAGE ÉCHANTILLONNÉ ---
-        if frame_idx % 50 == 0 || frame_idx == total_images - 1 {
-            let file_name = img_path.file_name().unwrap_or_default().to_string_lossy();
-            println!(
-                "🎯 Frame [{:04}/{:04}] | ID Trajectoire: {} | T: {:.2?}",
-                frame_idx + 1, total_images, gt_data.marker_id, inference_duration
-            );
-            println!(
-                "       📊 [ANGLES] -> Roll Réel: {:.1}° (CNN: {:.1}°) | Pitch Réel: {:.1}° (CNN: {:.1}°)",
-                gt_data.roll_deg, pred_roll, gt_data.pitch_deg, pred_pitch
-            );
-            println!(
-                "       🛰️  [ALTITUDE Z] -> Réelle: {:.2}m | Brute CNN: {:.3}m | ✨ Kalman: {:.3}m",
-                gt_data.distance_m, raw_cnn_z, kalman_z.x
-            );
-            println!("--------------------------------------------------------------------------------");
-        }
-    }
-
-    println!("🏁 Traitement complet terminé !");
-    Ok(())
+    ([gyro_x, gyro_y, gyro_z], [accel_x, accel_y, accel_z])
 }

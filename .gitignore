@@ -12,4 +12,5 @@ __pycache__/
 # VSCode
 .vscode/
 
-Ardu-Citron-3/Sol/
+Ardu-Citron-3/Sol/CNN/cnn_roi_dataset
+Ardu-Citron-3/Sol/CNN/Dataset

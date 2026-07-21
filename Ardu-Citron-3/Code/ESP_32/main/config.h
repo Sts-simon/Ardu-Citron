@@ -41,8 +41,8 @@ constexpr uint8_t PIN_BUZZER = 13;
 // CONSIGNES D'ATTITUDE (setpoints) - tres facilement modifiables
 // ------------------------------------------------------------
 constexpr float SETPOINT_ROLL_DEG  = 0.0f;
-constexpr float SETPOINT_PITCH_DEG = 5.0f;
-constexpr float SETPOINT_YAW_DEG   = 10.0f; 
+constexpr float SETPOINT_PITCH_DEG = 0.0f;
+constexpr float SETPOINT_YAW_DEG   = 0.0f; 
 
 // ------------------------------------------------------------
 // FREQUENCES DE FONCTIONNEMENT (Hz) -> conversion automatique en periodes (us)
@@ -116,7 +116,7 @@ constexpr int SERVO_MIN_US    = 1000;
 constexpr int SERVO_MAX_US    = 2000;
 
 constexpr float SERVO_DEADBAND_DEG    = 1.0f;  // Zone morte +-1 deg
-constexpr float SERVO_MAX_TRAVEL_DEG  = 45.0f; // Debattement max (correspond a SERVO_MIN/MAX_US)
+constexpr float SERVO_MAX_TRAVEL_DEG  = 20.0f; // Debattement max (correspond a SERVO_MIN/MAX_US)
 constexpr float SERVO_MAX_SPEED_DEG_PER_S = 300.0f; // 0 = pas de limitation de vitesse
 
 // Trims logiciels (deg), ajoutes apres mixage
@@ -125,7 +125,7 @@ constexpr float SERVO_TRIM_2_DEG = 0.0f;
 constexpr float SERVO_TRIM_3_DEG = 0.0f;
 
 // Inversion de sens (+1 normal, -1 inverse)
-constexpr int SERVO_DIR_1 = +1;
+constexpr int SERVO_DIR_1 = -1;
 constexpr int SERVO_DIR_2 = +1;
 constexpr int SERVO_DIR_3 = +1;
 

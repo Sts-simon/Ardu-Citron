@@ -23,8 +23,8 @@
 // BROCHAGE
 // ------------------------------------------------------------
 // I2C (MPU6050)
-constexpr uint8_t PIN_I2C_SDA = 23;
-constexpr uint8_t PIN_I2C_SCL = 22;
+constexpr uint8_t PIN_I2C_SDA = 22;
+constexpr uint8_t PIN_I2C_SCL = 23;
 constexpr uint32_t I2C_CLOCK_HZ = 400000; // I2C fast mode
 
 // Servos
@@ -33,7 +33,7 @@ constexpr uint8_t PIN_SERVO_2 = 27;
 constexpr uint8_t PIN_SERVO_3 = 14;
 
 // Buzzer passif
-constexpr uint8_t PIN_BUZZER = 12;
+constexpr uint8_t PIN_BUZZER = 13;
 
 // UART reserve pour le futur Raspberry Pi : Serial (TX0/RX0) utilise directement.
 

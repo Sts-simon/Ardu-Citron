@@ -4,8 +4,8 @@
 
 I2C
 ----
-SDA : GPIO23
-SCL : GPIO22
+SDA : GPIO22
+SCL : GPIO23
 
 UART0 (Télémetrie / Debug)
 --------------------------

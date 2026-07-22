@@ -56,7 +56,7 @@ void haltOnError() {
 // Applique zone morte, limitation de debattement, limitation de
 // vitesse (slew rate), inversion et trim a une commande de mixage.
 // ------------------------------------------------------------
-float applyServoLimits(float commandDeg, float trimDeg, int dir, float &prevDeg) {
+float applyServoLimits(float commandDeg, float trimDeg, int dir, float &prevDeg, float maxTravelDeg) {
   float cmd = commandDeg;
 
   // Zone morte : evite les micro-corrections permanentes
@@ -64,8 +64,8 @@ float applyServoLimits(float commandDeg, float trimDeg, int dir, float &prevDeg)
     cmd = 0.0f;
   }
 
-  // Limitation du debattement
-  cmd = constrain(cmd, -SERVO_MAX_TRAVEL_DEG, SERVO_MAX_TRAVEL_DEG);
+  // Limitation du debattement (propre a ce servo)
+  cmd = constrain(cmd, -maxTravelDeg, maxTravelDeg);
 
   // Limitation de vitesse (slew rate), si activee (0 = desactivee)
   if (SERVO_MAX_SPEED_DEG_PER_S > 0.0f) {
@@ -80,11 +80,12 @@ float applyServoLimits(float commandDeg, float trimDeg, int dir, float &prevDeg)
   return dir * cmd + trimDeg;
 }
 
-void writeServo(Servo &servo, float commandDeg, float trimDeg, int dir, float &prevDeg) {
-  float finalDeg = applyServoLimits(commandDeg, trimDeg, dir, prevDeg);
+void writeServo(Servo &servo, float commandDeg, float trimDeg, int dir, float &prevDeg, float maxTravelDeg) {
+  float finalDeg = applyServoLimits(commandDeg, trimDeg, dir, prevDeg, maxTravelDeg);
 
-  // Mapping lineaire symetrique degres -> microsecondes
-  float usPerDeg = (float)(SERVO_MAX_US - SERVO_CENTER_US) / SERVO_MAX_TRAVEL_DEG;
+  // Mapping lineaire symetrique degres -> microsecondes, propre a ce servo
+  // (maxTravelDeg = debattement mecanique reel de CE servo -> SERVO_MIN/MAX_US)
+  float usPerDeg = (float)(SERVO_MAX_US - SERVO_CENTER_US) / maxTravelDeg;
   int pulseUs = SERVO_CENTER_US + (int)(finalDeg * usPerDeg);
   pulseUs = constrain(pulseUs, SERVO_MIN_US, SERVO_MAX_US);
 
@@ -139,9 +140,9 @@ void taskServoOutput() {
 
   ServoCommandsDeg mixed = Mixer::mix(rCmd, pCmd, yCmd);
 
-  writeServo(servo1, mixed.servo1Deg, SERVO_TRIM_1_DEG, SERVO_DIR_1, prevServo1Deg);
-  writeServo(servo2, mixed.servo2Deg, SERVO_TRIM_2_DEG, SERVO_DIR_2, prevServo2Deg);
-  writeServo(servo3, mixed.servo3Deg, SERVO_TRIM_3_DEG, SERVO_DIR_3, prevServo3Deg);
+  writeServo(servo1, mixed.servo1Deg, SERVO_TRIM_1_DEG, SERVO_DIR_1, prevServo1Deg, SERVO_MAX_TRAVEL_1_DEG);
+  writeServo(servo2, mixed.servo2Deg, SERVO_TRIM_2_DEG, SERVO_DIR_2, prevServo2Deg, SERVO_MAX_TRAVEL_2_DEG);
+  writeServo(servo3, mixed.servo3Deg, SERVO_TRIM_3_DEG, SERVO_DIR_3, prevServo3Deg, SERVO_MAX_TRAVEL_3_DEG);
 }
 
 // Pont UART reserve pour le futur Raspberry Pi (FREQ_UART_RPI_HZ)

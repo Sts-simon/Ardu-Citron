@@ -116,7 +116,14 @@ constexpr int SERVO_MIN_US    = 1000;
 constexpr int SERVO_MAX_US    = 2000;
 
 constexpr float SERVO_DEADBAND_DEG    = 1.0f;  // Zone morte +-1 deg
-constexpr float SERVO_MAX_TRAVEL_DEG  = 20.0f; // Debattement max (correspond a SERVO_MIN/MAX_US)
+
+// Debattement max PAR SERVO (deg), correspond a SERVO_MIN/MAX_US pour CE servo.
+// A regler individuellement selon la mecanique reelle de chaque gouverne
+// (longueur de bras de servo, position du guignol, etc.).
+constexpr float SERVO_MAX_TRAVEL_1_DEG = 1.0f;
+constexpr float SERVO_MAX_TRAVEL_2_DEG = 1.0f;
+constexpr float SERVO_MAX_TRAVEL_3_DEG = 1.0f;
+
 constexpr float SERVO_MAX_SPEED_DEG_PER_S = 300.0f; // 0 = pas de limitation de vitesse
 
 // Trims logiciels (deg), ajoutes apres mixage

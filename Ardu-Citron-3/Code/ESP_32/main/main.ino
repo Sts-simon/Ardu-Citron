@@ -195,7 +195,7 @@ void setup() {
 #if ENABLE_FAILSAFE
   failsafe.begin();
 #endif
-
+  sleep(5000);
   // --- Calibration IMU (planeur immobile) ---
   // Bip court toutes les 500 ms pendant CALIBRATION_DURATION_MS, en
   // parallele de l'accumulation des echantillons IMU. Tout est pilote

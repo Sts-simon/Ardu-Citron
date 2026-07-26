@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Projet Ardu-Citron : Simulateur de capteur et générateur de dataset ArUco réaliste (Version Multi-processus 4 Coeurs).
-Auteur : Spécialiste Vision par Ordinateur & Simulation
-"""
-
 import os
 import io
 import argparse
@@ -169,7 +161,7 @@ CONFIG = {
 
     # --- Dataset CNN (train/val) : exemples indépendants, sans trajectoire (diversité maximale) ---
     "cnn_output_dir": "Dataset_CNN",
-    "cnn_examples_per_marker": 600,   # Nb d'exemples indépendants générés par marqueur
+    "cnn_examples_per_marker": 3000,   # Nb d'exemples indépendants générés par marqueur
     "cnn_val_fraction": 0.15,         # Fraction réservée à la validation (85% train / 15% val)
     "roi_size": (128, 128),           # Taille fixe d'entrée pour le CNN
     "roi_margin_factor": 1.2,         # Marge de base autour du marqueur (contexte visuel)

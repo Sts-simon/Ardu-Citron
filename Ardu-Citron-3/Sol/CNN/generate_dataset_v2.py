@@ -76,7 +76,7 @@ CONFIG = {
     "wind_gust_tau_s": 0.40,         # Constante de temps de la dérive du vent (corrélation lente)
 
     # --- Entrée / sortie de cadre : le marqueur apparaît d'un côté et traverse l'image ---
-    "trajectories_per_marker": 4,        # Nb de trajectoires (vols) générées par marqueur
+    "trajectories_per_marker": 4,         # Nb de trajectoires (vols) générées par marqueur (dataset VÉRIFICATION)
     "entry_touch_factor_range": (0.65, 0.9),  # Position d'entrée (fraction du rayon d'empreinte au sol)
     "entry_angle_jitter_deg": 45.0,      # Dispersion angulaire de l'entrée autour du cap moyen
 
@@ -158,15 +158,20 @@ CONFIG = {
     "autofocus_blur_prob": 0.3,    # (conservé pour compatibilité, non utilisé par le nouveau pipeline DOF)
 
     # Chemins des fichiers
-    "output_dir": "Dataset",
+    # Les deux datasets sont TOTALEMENT SÉPARÉS, avec des générateurs différents :
+    #  - "verification_output_dir" : dataset de VÉRIFICATION du programme complet, à base de
+    #    trajectoires continues (vol, IMU, dérive, entrée/sortie de cadre). Sert à valider le
+    #    système entier dans le temps, PAS à entraîner le CNN.
+    #  - "cnn_output_dir" : dataset D'ENTRAÎNEMENT du CNN, exemples 100% indépendants (pas de
+    #    trajectoire), répartis directement en train/ et val/ pour la diversité.
+    "verification_output_dir": "Dataset_Verification",
     "markers_dir": "Markers_5",
 
-    # --- Dataset ROI pour CNN (fusion de Prepare.py) ---
-    # Ici on privilégie la DIVERSITÉ des positions/échelles plutôt que la cohérence de trajectoire :
-    # chaque crop est tiré indépendamment, sans lien avec les crops voisins dans le temps.
-    "roi_output_dir": "cnn_roi_dataset",
+    # --- Dataset CNN (train/val) : exemples indépendants, sans trajectoire (diversité maximale) ---
+    "cnn_output_dir": "Dataset_CNN",
+    "cnn_examples_per_marker": 600,   # Nb d'exemples indépendants générés par marqueur
+    "cnn_val_fraction": 0.15,         # Fraction réservée à la validation (85% train / 15% val)
     "roi_size": (128, 128),           # Taille fixe d'entrée pour le CNN
-    "roi_augmentation_factor": 3,     # 3 crops indépendants et aléatoires par image caméra
     "roi_margin_factor": 1.2,         # Marge de base autour du marqueur (contexte visuel)
     "roi_scale_range": (1.0, 1.6),    # Variation de zoom arrière du crop (plans plus ou moins larges)
     "roi_position_jitter_frac": 0.6,  # Décentrage aléatoire du marqueur dans le crop (fraction de la marge)
@@ -1008,6 +1013,69 @@ def composite_images(floor, shadow, marker):
     return np.clip(final, 0, 255).astype(np.uint8)
 
 
+def render_frame(marker_base, ground_texture, width, height, fx,
+                  altitude, roll, pitch, yaw, yaw_rate, speed, drone_x, drone_y,
+                  sun_az_deg, sun_elev_deg, focus_distance_m, autofocus_hunting,
+                  k1, k2, k3, p1, p2, wb_temp, wb_green, t_abs, hot_pixel_mask, config):
+    """
+    Rend une frame complète (sol + marqueur + tous les effets caméra/optiques/environnementaux).
+    Fonction PARTAGÉE entre le dataset de VÉRIFICATION (trajectoires continues, voir
+    process_verification_marker) et le dataset CNN (exemples indépendants, voir
+    generate_cnn_examples_for_marker) : la physique du rendu est strictement identique dans
+    les deux cas, seule la façon dont les paramètres d'entrée sont générés diffère
+    (progression temporelle d'un vol vs tirage aléatoire indépendant par exemple).
+    """
+    marker_w, shadow_w, pts_img, ground_H = apply_drone_rotation(
+        marker_base, width, height, altitude, roll, pitch, yaw,
+        drone_x, drone_y, sun_az_deg, sun_elev_deg, config
+    )
+
+    scene = warp_ground_texture(ground_texture, ground_H, config["ground_texels_per_meter"], width, height)
+    scene = composite_images(scene, shadow_w, marker_w)
+
+    scene = apply_specular_highlights(scene, config)
+
+    vib_amp = random.uniform(*config["vibration_amplitude_px_range"])
+    scene = apply_vibration_jitter(scene, vib_amp)
+
+    motion_dist_m = speed * config["exposure_time"]
+    motion_blur_len = motion_dist_m * (fx / altitude) + vib_amp * config["vibration_blur_coeff"]
+    motion_angle = 90.0 + yaw_rate * config["exposure_time"] * 10.0 + random.uniform(-3, 3)
+    scene = apply_motion_blur(scene, motion_blur_len, motion_angle)
+
+    lateral_speed = speed * np.sin(np.radians(yaw))
+    shutter_shift_m = lateral_speed * config["rolling_shutter_readout"]
+    shutter_shift_px = shutter_shift_m * (fx / altitude)
+    scene = apply_rolling_shutter(scene, shutter_shift_px)
+
+    scene = apply_lens_distortion(scene, k1, k2, k3, p1, p2)
+
+    defocus_m = abs(altitude - focus_distance_m)
+    ksize = config["dof_blur_base_px"] + defocus_m * config["dof_blur_coeff_px_per_m"]
+    if autofocus_hunting:
+        ksize += config["autofocus_hunt_extra_ksize"]
+    ksize = min(ksize, config["dof_max_ksize"])
+    scene = apply_focus_blur(scene, ksize)
+
+    scene = apply_neon_and_white_balance(scene, t_abs, config, wb_temp, wb_green)
+
+    vignette_strength = random.uniform(*config["vignette_strength_range"])
+    scene = apply_vignette(scene, vignette_strength)
+
+    ae_gain = random.uniform(*config["ae_gain_range"])
+    scene = apply_auto_exposure(scene, ae_gain)
+
+    scene = apply_sensor_noise(scene, config, hot_pixel_mask=hot_pixel_mask)
+    scene = apply_jpeg_compression(scene, config["jpeg_quality_choices"])
+
+    meta = {
+        "vibration_px": vib_amp,
+        "vignette_strength": vignette_strength,
+        "ae_gain": ae_gain,
+    }
+    return scene, pts_img, ground_H, meta
+
+
 def extract_marker_id(filename):
     match = re.search(r'4x4_1000-(\d+)\.svg', os.path.basename(filename))
     return int(match.group(1)) if match else 0
@@ -1025,8 +1093,13 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 # WORKER PROCESS: TRAITEMENT D'UN FICHIER SVG (1 TRAJECTOIRE COMPLÈTE)
 # ==============================================================================
 
-def process_single_marker(svg_path):
-    """Fonction exécutée en parallèle : génère plusieurs trajectoires (vols) pour un même marqueur."""
+def process_verification_marker(svg_path):
+    """
+    Dataset de VÉRIFICATION du programme complet : génère plusieurs trajectoires (vols)
+    continues pour un même marqueur (dynamique de vol, IMU, dérive, entrée/sortie de cadre).
+    Sert à valider le système entier (tracking, fusion IMU, comportement dans le temps) —
+    PAS à entraîner le CNN (voir generate_cnn_examples_for_marker pour ça).
+    """
     # Sécurise l'aléa pour éviter les doublons de trajectoire entre processus
     random.seed(os.getpid() + int(time.time() * 1000) % 1000)
     np.random.seed(os.getpid() + int(time.time() * 1000) % 1000)
@@ -1037,7 +1110,7 @@ def process_single_marker(svg_path):
     if marker_base_clean is None:
         return 0, 0
 
-    output_dir = CONFIG["output_dir"]
+    output_dir = CONFIG["verification_output_dir"]
     frames_per_traj = CONFIG["frames_per_trajectory"]
     width, height = CONFIG["output_resolution"]
     fx, _, _, _ = get_camera_intrinsics(width, height)
@@ -1114,12 +1187,14 @@ def process_single_marker(svg_path):
             drone_x = float(traj["pos_x"][img_idx])
             drone_y = float(traj["pos_y"][img_idx])
 
-            marker_w, shadow_w, pts_img, ground_H = apply_drone_rotation(
-                marker_base, width, height, altitude, roll, pitch, yaw,
-                drone_x, drone_y, sun_az_deg, sun_elev_deg, CONFIG
-            )
-
-            xs, ys = pts_img[:, 0], pts_img[:, 1]
+            # Test de présence dans le cadre AVANT le rendu complet (pour l'arrêt anticipé)
+            R_check = compute_rotation_matrix(roll, pitch, yaw)
+            fx_c, fy_c, cx_c, cy_c = get_camera_intrinsics(width, height)
+            s_chk = CONFIG["marker_real_size"]
+            base_xy_chk = np.array([[-s_chk/2, -s_chk/2], [s_chk/2, -s_chk/2], [s_chk/2, s_chk/2], [-s_chk/2, s_chk/2]])
+            pts_w_chk = np.column_stack([base_xy_chk[:, 0] - drone_x, base_xy_chk[:, 1] - drone_y, np.full(4, altitude)])
+            pts_chk = project_points(pts_w_chk, R_check, fx_c, fy_c, cx_c, cy_c)
+            xs, ys = pts_chk[:, 0], pts_chk[:, 1]
             overlaps_frame = (xs.max() >= 0) and (xs.min() <= width - 1) and (ys.max() >= 0) and (ys.min() <= height - 1)
             marker_fully_in_frame = bool(
                 (xs.min() >= 0) and (xs.max() <= width - 1) and (ys.min() >= 0) and (ys.max() <= height - 1)
@@ -1131,53 +1206,16 @@ def process_single_marker(svg_path):
                 # Le marqueur est sorti du cadre après y être apparu : on arrête cette trajectoire ici.
                 break
 
-            # Sol entier plaqué avec la MÊME homographie que le marqueur (même point de fuite)
-            scene = warp_ground_texture(ground_texture, ground_H, CONFIG["ground_texels_per_meter"], width, height)
-            scene = composite_images(scene, shadow_w, marker_w)
-
-            # Reflets spéculaires du parquet (peuvent saturer une partie du marqueur)
-            scene = apply_specular_highlights(scene, CONFIG)
-
-            # Vibrations mécaniques : léger décalage + flou de mouvement additionnel
-            vib_amp = random.uniform(*CONFIG["vibration_amplitude_px_range"])
-            scene = apply_vibration_jitter(scene, vib_amp)
-
-            motion_dist_m = speed * CONFIG["exposure_time"]
-            motion_blur_len = motion_dist_m * (fx / altitude) + vib_amp * CONFIG["vibration_blur_coeff"]
-            motion_angle = 90.0 + yaw_rate * CONFIG["exposure_time"] * 10.0 + random.uniform(-3, 3)
-            scene = apply_motion_blur(scene, motion_blur_len, motion_angle)
-
-            lateral_speed = speed * np.sin(np.radians(yaw))
-            shutter_shift_m = lateral_speed * CONFIG["rolling_shutter_readout"]
-            shutter_shift_px = shutter_shift_m * (fx / altitude)
-            scene = apply_rolling_shutter(scene, shutter_shift_px)
-
-            scene = apply_lens_distortion(scene, k1, k2, k3, p1, p2)
-
-            # Profondeur de champ : flou proportionnel à l'écart avec la distance de mise au point,
-            # + éventuel "saut" de mise au point (hunting) sur une fenêtre de frames.
-            defocus_m = abs(altitude - focus_distance_m)
-            ksize = CONFIG["dof_blur_base_px"] + defocus_m * CONFIG["dof_blur_coeff_px_per_m"]
-            if hunt_start <= img_idx < hunt_end:
-                ksize += CONFIG["autofocus_hunt_extra_ksize"]
-            ksize = min(ksize, CONFIG["dof_max_ksize"])
-            scene = apply_focus_blur(scene, ksize)
-
-            # Néons/LED (scintillement + dominante verte) + balance des blancs de la caméra
+            autofocus_hunting = hunt_start <= img_idx < hunt_end
             t_abs = t0_abs + img_idx * dt_frame
-            scene = apply_neon_and_white_balance(
-                scene, t_abs, CONFIG, float(wb_temp_path[img_idx]), float(wb_green_path[img_idx])
+
+            scene, pts_img, ground_H, meta = render_frame(
+                marker_base, ground_texture, width, height, fx,
+                altitude, roll, pitch, yaw, yaw_rate, speed, drone_x, drone_y,
+                sun_az_deg, sun_elev_deg, focus_distance_m, autofocus_hunting,
+                k1, k2, k3, p1, p2, float(wb_temp_path[img_idx]), float(wb_green_path[img_idx]),
+                t_abs, hot_pixel_mask, CONFIG
             )
-
-            vignette_strength = random.uniform(*CONFIG["vignette_strength_range"])
-            scene = apply_vignette(scene, vignette_strength)
-
-            ae_gain = random.uniform(*CONFIG["ae_gain_range"])
-            scene = apply_auto_exposure(scene, ae_gain)
-
-            scene = apply_sensor_noise(scene, CONFIG, hot_pixel_mask=hot_pixel_mask)
-
-            scene = apply_jpeg_compression(scene, CONFIG["jpeg_quality_choices"])
 
             detected_markers = local_detector.detect(scene)
             is_detected = any(m["id"] == int(marker_id) for m in detected_markers)
@@ -1214,10 +1252,10 @@ def process_single_marker(svg_path):
                     "sun_azimuth_deg": round(sun_az_deg, 1),
                     "sun_elevation_deg": round(sun_elev_deg, 1),
                     "focus_distance_m": round(focus_distance_m, 2),
-                    "autofocus_hunting": bool(hunt_start <= img_idx < hunt_end),
-                    "ae_gain": round(float(ae_gain), 3),
-                    "vignette_strength": round(float(vignette_strength), 3),
-                    "vibration_px": round(float(vib_amp), 3),
+                    "autofocus_hunting": bool(autofocus_hunting),
+                    "ae_gain": round(float(meta["ae_gain"]), 3),
+                    "vignette_strength": round(float(meta["vignette_strength"]), 3),
+                    "vibration_px": round(float(meta["vibration_px"]), 3),
                     "wb_temp": round(float(wb_temp_path[img_idx]), 3),
                     "wb_green": round(float(wb_green_path[img_idx]), 3),
                     "lens_distortion": {"k1": round(k1, 4), "k2": round(k2, 4), "k3": round(k3, 4),
@@ -1250,182 +1288,189 @@ def process_single_marker(svg_path):
     return total_written, local_detected_count
 
 # ==============================================================================
-# PIPELINE PRINCIPAL MULTI-PROCESSUS
+# ÉTAPE 2 : DATASET CNN (train/val) — EXEMPLES INDÉPENDANTS, SANS TRAJECTOIRE
 # ==============================================================================
+# Contrairement au dataset de VÉRIFICATION ci-dessus (trajectoires continues, IMU, dérive
+# temporelle), ce dataset ne modélise AUCUN vol : chaque exemple est un tirage indépendant
+# (altitude, attitude, position du marqueur dans l'image, environnement, éclairage, optique,
+# imperfections du marqueur) rendu directement en crop ROI. Objectif : diversité maximale
+# pour l'entraînement du CNN, pas cohérence temporelle. Écrit directement en train/ et val/.
 
-# ==============================================================================
-# ÉTAPE 2 : DATASET ROI POUR CNN (fusion de Prepare.py)
-# ==============================================================================
-# Repart des images "caméra" (frame complète 640x480) générées ci-dessus et produit
-# un second dataset : des crops recentrés/agrandis autour du marqueur (128x128 par défaut).
-# Ici on privilégie la DIVERSITÉ des positions/échelles plutôt que la cohérence temporelle :
-# chaque crop est tiré indépendamment (position du marqueur dans le crop, zoom) sans lien
-# avec les frames voisines de la même trajectoire — pas de "suivi" simulé.
+def generate_cnn_examples_for_marker(svg_path):
+    """Génère cnn_examples_per_marker exemples indépendants pour un marqueur, répartis train/val."""
+    random.seed(os.getpid() + int(time.time() * 1000) % 1000 + 7919)
+    np.random.seed(os.getpid() + int(time.time() * 1000) % 1000 + 7919)
 
-def create_augmented_roi_dataset(config):
-    dataset_dir = config["output_dir"]
-    output_dir = config["roi_output_dir"]
-    roi_size = config["roi_size"]
-    augmentation_factor = config["roi_augmentation_factor"]
-    margin_factor = config["roi_margin_factor"]
-    position_jitter_frac = config["roi_position_jitter_frac"]
-    scale_lo, scale_hi = config["roi_scale_range"]
+    marker_id = extract_marker_id(svg_path)
+    marker_base_clean = load_marker(svg_path, size=600)
+    if marker_base_clean is None:
+        return 0, 0
 
-    os.makedirs(output_dir, exist_ok=True)
+    width, height = CONFIG["output_resolution"]
+    fx, fy, cx, cy = get_camera_intrinsics(width, height)
+    half_diag_px = np.sqrt((width / 2.0) ** 2 + (height / 2.0) ** 2)
 
-    image_paths = sorted(glob.glob(os.path.join(dataset_dir, "*.png")))
-    print(f"🔍 [ROI] {len(image_paths)} images caméra trouvées dans '{dataset_dir}'.")
+    roi_size = CONFIG["roi_size"]
+    margin_factor = CONFIG["roi_margin_factor"]
+    scale_lo, scale_hi = CONFIG["roi_scale_range"]
+    position_jitter_frac = CONFIG["roi_position_jitter_frac"]
+    val_fraction = CONFIG["cnn_val_fraction"]
+    n_examples = CONFIG["cnn_examples_per_marker"]
 
-    if len(image_paths) == 0:
-        print(f"❌ [ROI] Aucune image trouvée dans '{dataset_dir}'. Génère d'abord le dataset caméra.")
-        return 0
+    train_dir = os.path.join(CONFIG["cnn_output_dir"], "train")
+    val_dir = os.path.join(CONFIG["cnn_output_dir"], "val")
 
-    local_detector = None  # instancié à la demande, seulement si des coins manquent dans le JSON
-    count = 0
+    n_train, n_val = 0, 0
 
-    for img_path in image_paths:
-        json_path = img_path.replace(".png", ".json")
-        if not os.path.exists(json_path):
+    for ex_idx in range(n_examples):
+        # --- Tirage 100% indépendant : pas de dynamique de vol, juste de la diversité ---
+        altitude = random.uniform(CONFIG["altitude_min"], CONFIG["altitude_max"])
+        roll = random.uniform(-CONFIG["roll_max_deg"], CONFIG["roll_max_deg"])
+        pitch = random.uniform(-CONFIG["pitch_max_deg"], CONFIG["pitch_max_deg"])
+        yaw = random.uniform(0.0, 360.0)
+        yaw_rate = random.gauss(0.0, 8.0)
+        speed = max(0.0, CONFIG["drone_speed"] + random.gauss(0.0, 1.0))
+
+        # Position du marqueur dans l'image : du centre jusqu'à (voire au-delà de) l'empreinte
+        # au sol -> diversité de cadrage (centré, coin, partiellement hors-champ).
+        footprint_radius_m = (half_diag_px / fx) * altitude
+        place_radius = footprint_radius_m * random.uniform(0.0, 1.15)
+        place_angle = random.uniform(0.0, 2 * np.pi)
+        drone_x = -place_radius * np.cos(place_angle)
+        drone_y = -place_radius * np.sin(place_angle)
+
+        texture_type = random.choices(
+            CONFIG["ground_texture_types"], weights=CONFIG.get("ground_texture_weights"), k=1
+        )[0]
+        tex_size_px = int(CONFIG["ground_texture_size_m"] * CONFIG["ground_texels_per_meter"])
+        ground_texture = generate_ground_texture(texture_type, tex_size_px, CONFIG)
+
+        sun_az_deg = random.uniform(0.0, 360.0)
+        sun_elev_deg = random.uniform(*CONFIG["sun_elevation_range_deg"])
+        focus_distance_m = float(np.clip(
+            altitude + random.uniform(*CONFIG["focus_error_range_m"]),
+            CONFIG["altitude_min"], CONFIG["altitude_max"]
+        ))
+        autofocus_hunting = random.random() < CONFIG["autofocus_hunt_event_prob"]
+
+        marker_base = apply_marker_imperfections(marker_base_clean, CONFIG)
+        hot_pixel_mask = generate_hot_pixel_mask(width, height, CONFIG["hot_pixel_count_range"])
+
+        k1 = random.uniform(*CONFIG["k1_distortion_range"])
+        k2 = random.uniform(*CONFIG["k2_distortion_range"])
+        k3 = random.uniform(*CONFIG["k3_distortion_range"])
+        p1 = random.uniform(*CONFIG["p1_distortion_range"])
+        p2 = random.uniform(*CONFIG["p2_distortion_range"])
+        wb_temp = random.uniform(*CONFIG["wb_temp_range"])
+        wb_green = random.uniform(*CONFIG["wb_green_range"])
+        t_abs = random.uniform(0.0, 10.0)
+
+        scene, pts_img, ground_H, meta = render_frame(
+            marker_base, ground_texture, width, height, fx,
+            altitude, roll, pitch, yaw, yaw_rate, speed, drone_x, drone_y,
+            sun_az_deg, sun_elev_deg, focus_distance_m, autofocus_hunting,
+            k1, k2, k3, p1, p2, wb_temp, wb_green, t_abs, hot_pixel_mask, CONFIG
+        )
+
+        # --- Crop ROI directement à la génération (pas de fichier caméra intermédiaire) ---
+        xs, ys = pts_img[:, 0], pts_img[:, 1]
+        xmin, xmax = int(xs.min()), int(xs.max())
+        ymin, ymax = int(ys.min()), int(ys.max())
+        center_x, center_y = (xmin + xmax) // 2, (ymin + ymax) // 2
+        box_w, box_h = max(xmax - xmin, 1), max(ymax - ymin, 1)
+        margin = int(max(box_w, box_h) * margin_factor)
+
+        scale_modifier = random.uniform(scale_lo, scale_hi)
+        current_margin = int(margin * scale_modifier)
+        max_jitter = int(current_margin * position_jitter_frac)
+        dx = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
+        dy = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
+
+        crop_xmin = max(0, center_x - current_margin + dx)
+        crop_xmax = min(width, center_x + current_margin + dx)
+        crop_ymin = max(0, center_y - current_margin + dy)
+        crop_ymax = min(height, center_y + current_margin + dy)
+
+        roi = scene[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
+        if roi.size == 0:
             continue
+        roi_resized = cv2.resize(roi, roi_size)
 
-        img = cv2.imread(img_path)
-        if img is None:
-            continue
-        h_img, w_img = img.shape[:2]
+        is_val = random.random() < val_fraction
+        split_dir = val_dir if is_val else train_dir
+        base_name = f"marker_{marker_id}_{ex_idx:05d}"
 
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        cv2.imwrite(os.path.join(split_dir, f"{base_name}.png"), roi_resized)
 
-        try:
-            drone_pos = data.get("drone_pos_m", [data.get("pos_x", 0.0), data.get("pos_y", 0.0)])
-            x = drone_pos[0]
-            y = drone_pos[1]
-            z = data.get("distance_m", data.get("pos_z", data.get("z", 0.0)))
+        output_data = {
+            "marker_id": int(marker_id),
+            "split": "val" if is_val else "train",
+            "img_channels_height_width": [3, roi_size[0], roi_size[1]],
+            "target_pose_xyz_rpy": [
+                round(float(drone_x), 4), round(float(drone_y), 4), round(float(altitude), 4),
+                round(float(roll), 2), round(float(pitch), 2), round(float(yaw), 2)
+            ],
+        }
+        with open(os.path.join(split_dir, f"{base_name}.json"), 'w', encoding='utf-8') as out_f:
+            json.dump(output_data, out_f, indent=4)
 
-            gt_labels = [
-                x, y, z,
-                data["roll_deg"], data["pitch_deg"], data["yaw_deg"]
-            ]
-            marker_id = data.get("marker_id")
-            corners = data.get("aruco_corners", None)
-        except KeyError:
-            continue
+        if is_val:
+            n_val += 1
+        else:
+            n_train += 1
 
-        # Ground truth (coins projetés) en priorité ; détection ArUco en secours uniquement
-        # pour d'anciens JSON qui n'auraient pas encore le champ "aruco_corners".
-        if corners is None:
-            if local_detector is None:
-                local_detector = ArucoDetector()
-            detected_markers = local_detector.detect(img)
-            match = next((m for m in detected_markers if marker_id is None or m["id"] == int(marker_id)), None)
-            if match is None or "corners" not in match:
-                continue
-            corners = match["corners"]
-
-        corners = np.array(corners)
-        x_coords = corners[:, 0]
-        y_coords = corners[:, 1]
-        xmin, xmax = int(min(x_coords)), int(max(x_coords))
-        ymin, ymax = int(min(y_coords)), int(max(y_coords))
-
-        center_x = (xmin + xmax) // 2
-        center_y = (ymin + ymax) // 2
-        box_w = xmax - xmin
-        box_h = ymax - ymin
-
-        # Marge autour du marqueur pour inclure le contexte visuel du drone
-        margin = int(max(box_w, box_h, 1) * margin_factor)
-
-        for i in range(augmentation_factor):
-            # Chaque crop est indépendant : échelle et décentrage du marqueur tirés librement,
-            # sans lien avec les autres augmentations ni avec les frames voisines.
-            scale_modifier = random.uniform(scale_lo, scale_hi)
-            current_margin = int(margin * scale_modifier)
-
-            max_jitter = int(current_margin * position_jitter_frac)
-            dx = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
-            dy = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
-
-            crop_xmin = max(0, center_x - current_margin + dx)
-            crop_xmax = min(w_img, center_x + current_margin + dx)
-            crop_ymin = max(0, center_y - current_margin + dy)
-            crop_ymax = min(h_img, center_y + current_margin + dy)
-
-            roi = img[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
-            if roi.size == 0:
-                continue
-            roi_resized = cv2.resize(roi, roi_size)
-
-            base_name = os.path.basename(img_path).replace(".png", "")
-            new_img_name = f"{base_name}_aug_{i}.png"
-            new_json_name = f"{base_name}_aug_{i}.json"
-
-            cv2.imwrite(os.path.join(output_dir, new_img_name), roi_resized)
-
-            output_data = {
-                "marker_id": marker_id,
-                "img_channels_height_width": [3, roi_size[0], roi_size[1]],
-                "target_pose_xyz_rpy": [float(v) for v in gt_labels],
-            }
-
-            with open(os.path.join(output_dir, new_json_name), 'w', encoding='utf-8') as out_f:
-                json.dump(output_data, out_f, indent=4)
-
-            count += 1
-
-    print(f"✅ [ROI] Dataset généré dans '{output_dir}/' : {count} images.")
-    return count
+    return n_train, n_val
 
 
 def main():
     parser = argparse.ArgumentParser(description="Ardu-Citron Dataset Generator (Caméra + ROI CNN)")
-    parser.add_argument("--skip-camera", action="store_true", help="Ne pas régénérer le dataset caméra (frame complète)")
-    parser.add_argument("--skip-roi", action="store_true", help="Ne pas générer le dataset ROI (crops CNN)")
+    parser.add_argument("--skip-verification", action="store_true",
+                         help="Ne pas générer le dataset de vérification (trajectoires)")
+    parser.add_argument("--skip-cnn", action="store_true",
+                         help="Ne pas générer le dataset CNN (train/val, exemples indépendants)")
     args = parser.parse_args()
 
     print("=== [Ardu-Citron Dataset Generator - Multi-processus 4 Coeurs] ===")
+    print("    2 datasets TOTALEMENT SÉPARÉS : vérification (trajectoires) et CNN (train/val, sans trajectoire)\n")
 
-    output_dir = CONFIG["output_dir"]
-    os.makedirs(output_dir, exist_ok=True)
+    svg_files = glob.glob("4x4_1000-*.svg")
+    if not svg_files:
+        svg_files = glob.glob(os.path.join(CONFIG["markers_dir"], "4x4_1000-*.svg"))
+    if not svg_files:
+        print(f"\n[ERREUR] Aucun fichier '4x4_1000-*.svg' trouvé.")
+        return
+    svg_files = sorted(svg_files, key=extract_marker_id)
+    num_markers = len(svg_files)
+    print(f"-> {num_markers} marqueurs détectés.")
 
-    if not args.skip_camera:
-        svg_files = glob.glob("4x4_1000-*.svg")
-        if not svg_files:
-            svg_files = glob.glob(os.path.join(CONFIG["markers_dir"], "4x4_1000-*.svg"))
+    # ==========================================================================
+    # [1/2] DATASET DE VÉRIFICATION : trajectoires continues (vol, IMU, dérive...)
+    # ==========================================================================
+    if not args.skip_verification:
+        verif_dir = CONFIG["verification_output_dir"]
+        os.makedirs(verif_dir, exist_ok=True)
 
-        if not svg_files:
-            print(f"\n[ERREUR] Aucun fichier '4x4_1000-*.svg' trouvé.")
-            return
-
-        svg_files = sorted(svg_files, key=extract_marker_id)
-        num_markers = len(svg_files)
         frames_per_traj = CONFIG["frames_per_trajectory"]
         n_traj = CONFIG["trajectories_per_marker"]
         total_images_max = num_markers * n_traj * frames_per_traj
 
-        print(f"-> {num_markers} marqueurs détectés.")
-        print(f"-> Allocation de 4 processus parallèles...")
-        print(f"-> [1/2] Génération du dataset CAMÉRA : {num_markers} marqueurs x {n_traj} trajectoires x "
+        print(f"-> [1/2] VÉRIFICATION ('{verif_dir}/') : {num_markers} marqueurs x {n_traj} trajectoires x "
               f"jusqu'à {frames_per_traj} frames (le marqueur peut sortir du cadre avant la fin -> "
               f"trajectoire arrêtée plus tôt), soit au maximum {total_images_max} images.")
 
         start_time = time.time()
-
         total_processed = 0
         total_detected = 0
 
         print_progress_bar(0, total_images_max, prefix='Progression:', suffix='Terminé', length=50)
 
-        # Utilisation de ProcessPoolExecutor fixé à 4 workers maximum comme demandé
         with ProcessPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(process_single_marker, svg_path): svg_path for svg_path in svg_files}
-
+            futures = {executor.submit(process_verification_marker, svg_path): svg_path for svg_path in svg_files}
             for future in as_completed(futures):
                 try:
                     processed, detected = future.result()
                     total_processed += processed
                     total_detected += detected
-                    # Mise à jour globale immédiate (le total réel est <= total_images_max)
                     print_progress_bar(min(total_processed, total_images_max), total_images_max,
                                         prefix='Progression:', suffix='Terminé', length=50)
                 except Exception as e:
@@ -1436,30 +1481,53 @@ def main():
         elapsed_time = time.time() - start_time
         success_rate = (total_detected / total_processed) * 100 if total_processed > 0 else 0
 
-        print(f"\n[SUCCÈS] Dataset CAMÉRA généré dans '{output_dir}/' !")
+        print(f"[SUCCÈS] Dataset de VÉRIFICATION généré dans '{verif_dir}/' !")
         print(f"📸 {total_processed} images réellement écrites (sur {total_images_max} au maximum théorique).")
-        print(f"⏱️ Temps d'exécution total : {elapsed_time:.2f} secondes (soit {total_processed / elapsed_time:.1f} images/s)")
-        print(f"🎯 Taux de détectabilité initial par ArucoDetector : {success_rate:.2f} % ({total_detected}/{total_processed})")
+        print(f"⏱️ Temps : {elapsed_time:.2f}s ({total_processed / elapsed_time:.1f} images/s)" if elapsed_time > 0 else "")
+        print(f"🎯 Détectabilité ArucoDetector : {success_rate:.2f} % ({total_detected}/{total_processed})\n")
     else:
-        print("-> [1/2] Dataset caméra ignoré (--skip-camera).")
+        print("-> [1/2] Dataset de vérification ignoré (--skip-verification).")
 
-    if not args.skip_roi:
-        expected_roi = None
-        try:
-            n_camera = len(glob.glob(os.path.join(output_dir, "*.png")))
-            expected_roi = n_camera * CONFIG["roi_augmentation_factor"]
-        except Exception:
-            pass
-        print(f"\n-> [2/2] Génération du dataset ROI (crops CNN {CONFIG['roi_size'][0]}x{CONFIG['roi_size'][1]})"
-              + (f", ~{expected_roi} images attendues." if expected_roi else "."))
-        roi_start = time.time()
-        roi_count = create_augmented_roi_dataset(CONFIG)
-        roi_elapsed = time.time() - roi_start
-        print(f"⏱️ Temps ROI : {roi_elapsed:.2f} secondes ({roi_count / roi_elapsed:.1f} images/s)" if roi_elapsed > 0 else "")
+    # ==========================================================================
+    # [2/2] DATASET CNN : exemples 100% indépendants, sans trajectoire, train/val direct
+    # ==========================================================================
+    if not args.skip_cnn:
+        cnn_dir = CONFIG["cnn_output_dir"]
+        train_dir = os.path.join(cnn_dir, "train")
+        val_dir = os.path.join(cnn_dir, "val")
+        os.makedirs(train_dir, exist_ok=True)
+        os.makedirs(val_dir, exist_ok=True)
+
+        n_examples = CONFIG["cnn_examples_per_marker"]
+        total_cnn = num_markers * n_examples
+        print(f"-> [2/2] CNN ('{cnn_dir}/train' + '{cnn_dir}/val') : {num_markers} marqueurs x {n_examples} "
+              f"exemples indépendants (crops {CONFIG['roi_size'][0]}x{CONFIG['roi_size'][1]}) = {total_cnn} images, "
+              f"~{CONFIG['cnn_val_fraction']*100:.0f}% en validation.")
+
+        start_time = time.time()
+        total_train, total_val = 0, 0
+
+        with ProcessPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(generate_cnn_examples_for_marker, svg_path): svg_path for svg_path in svg_files}
+            for future in as_completed(futures):
+                try:
+                    n_train, n_val = future.result()
+                    total_train += n_train
+                    total_val += n_val
+                except Exception as e:
+                    svg_path = futures[future]
+                    print(f"\n[ERREUR] Le processus CNN pour {svg_path} a planté : {e}")
+
+        elapsed_time = time.time() - start_time
+        total_cnn_written = total_train + total_val
+
+        print(f"[SUCCÈS] Dataset CNN généré : {total_train} train / {total_val} val ({total_cnn_written} images).")
+        print(f"⏱️ Temps : {elapsed_time:.2f}s ({total_cnn_written / elapsed_time:.1f} images/s)" if elapsed_time > 0 else "")
     else:
-        print("-> [2/2] Dataset ROI ignoré (--skip-roi).")
+        print("-> [2/2] Dataset CNN ignoré (--skip-cnn).")
 
-    print(f"\n📦 Dataset CAMÉRA : '{CONFIG['output_dir']}/'  |  📦 Dataset ROI : '{CONFIG['roi_output_dir']}/'")
+    print(f"\n📦 Dataset VÉRIFICATION (trajectoires) : '{CONFIG['verification_output_dir']}/'")
+    print(f"📦 Dataset CNN (train/val, indépendant) : '{CONFIG['cnn_output_dir']}/train' + '/val'")
 
 
 if __name__ == "__main__":

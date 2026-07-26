@@ -5,22 +5,23 @@ import cv2
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader
 
-# Configuration
-DATA_DIR = "./cnn_roi_dataset"
+# Configuration adaptée à la nouvelle structure
+TRAIN_DIR = "./Dataset_CNN/train"
+VAL_DIR = "./Dataset_CNN/val"
 BATCH_SIZE = 32
 EPOCHS = 15
 LEARNING_RATE = 0.001
 
 # ==============================================================================
-# 1. DATASET PYTORCH AVEC NORMALISATION COMPLÈTE DES LABELS
+# 1. DATASET PYTORCH AVEC NORMALISATION ADAPTÉE AU NOUVEAU GÉNÉRATEUR
 # ==============================================================================
 class DronePoseDataset(Dataset):
     def __init__(self, data_dir):
         self.image_paths = sorted(glob.glob(os.path.join(data_dir, "*.png")))
         if len(self.image_paths) == 0:
-            raise RuntimeWarning(f"Aucune image trouvée dans {data_dir}. Lance d'abord generate_dataset_v2.py !")
+            raise RuntimeWarning(f"Aucune image trouvée dans {data_dir}. Vérifie que le générateur a bien tourné !")
         
     def __len__(self):
         return len(self.image_paths)
@@ -39,17 +40,21 @@ class DronePoseDataset(Dataset):
             data = json.load(f)
         labels = data["target_pose_xyz_rpy"] # [X, Y, Z, Roll, Pitch, Yaw]
         
-        # ✨ NORMALISATION MATHÉMATIQUE BORNÉE
-        # Positions X et Y : ramenées par rapport à une dérive générale de [-3.0, 3.0] mètres
-        x_norm = labels[0] / 3.0
-        y_norm = labels[1] / 3.0
-        # Altitude Z : configurée strictement entre 2.0m et 6.0m -> ramenée entre [0, 1]
+        # ✨ NORMALISATION MATHÉMATIQUE BORNÉE (Mise à jour V4)
+        # Positions X et Y : ramenées par rapport à une dérive max estimée à [-6.0, 6.0] mètres
+        x_norm = labels[0] / 6.0
+        y_norm = labels[1] / 6.0
+        
+        # Altitude Z : configurée entre 2.0m et 6.0m -> ramenée entre [0, 1]
         z_norm = (labels[2] - 2.0) / (6.0 - 2.0)
         
-        # Angles : Normalisation sur les plages dynamiques max du simulateur (35° Roll, 20° Pitch, 45° Yaw)
-        roll_norm = labels[3] / 35.0   # Évolue entre -1 et 1
-        pitch_norm = labels[4] / 20.0  # Évolue entre -1 et 1
-        yaw_norm = labels[5] / 45.0    # Évolue entre -1 et 1
+        # Angles : Normalisation sur les nouvelles plages dynamiques max
+        roll_norm = labels[3] / 35.0   # Évolue entre -1 et 1 (-35° à 35°)
+        pitch_norm = labels[4] / 20.0  # Évolue entre -1 et 1 (-20° à 20°)
+        
+        # Le nouveau générateur sort un Yaw entre 0° et 360°
+        # On le ramène entre -1 et 1 en décalant de 180°
+        yaw_norm = (labels[5] - 180.0) / 180.0
         
         normalized_labels = [x_norm, y_norm, z_norm, roll_norm, pitch_norm, yaw_norm]
         
@@ -92,15 +97,15 @@ class TinyDroneLocalizer(nn.Module):
 # ==============================================================================
 def train():
     print("🚀 Préparation de l'entraînement...")
-    dataset = DronePoseDataset(DATA_DIR)
     
-    # Split 80% train / 20% validation
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    # Chargement direct depuis les dossiers pré-découpés par le générateur
+    train_dataset = DronePoseDataset(TRAIN_DIR)
+    val_dataset = DronePoseDataset(VAL_DIR)
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
+    print(f"📊 Données chargées : {len(train_dataset)} images (Train) / {len(val_dataset)} images (Val)")
     
     model = TinyDroneLocalizer()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -171,7 +176,7 @@ def train():
             'val_loss': epoch_val_loss,
         }, checkpoint_path)
         
-        # 📦 2. ✨ NOUVEAUTÉ : Export SIMULTANÉ du checkpoint au format ONNX
+        # 📦 2. Export SIMULTANÉ du checkpoint au format ONNX
         onnx_checkpoint_path = f"checkpoints/tiny_drone_epoch_{epoch+1}.onnx"
         torch.onnx.export(
             model, 
@@ -183,7 +188,6 @@ def train():
             input_names=['input_roi'], 
             output_names=['output_pose']
         )
-        print(f"   ↳ 💾 Checkpoints sauvegardés : {checkpoint_path} ET {onnx_checkpoint_path}")
         
     # Sauvegarde finale classique des poids
     torch.save(model.state_dict(), "tiny_drone_cnn.pth")

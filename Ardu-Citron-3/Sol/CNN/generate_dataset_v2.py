@@ -68,30 +68,62 @@ CONFIG = {
     "camera_v_fov": 52.0,          # FOV Vertical en degrés
     "exposure_time": 1.0 / 500.0,   # Temps de pose de la caméra (en secondes)
     "rolling_shutter_readout": 0.02, # Temps de balayage du capteur (en secondes)
-    "k1_distortion": -0.07,        # Coefficient radial k1 de la lentille (IMX708)
-    
+    "k1_distortion": -0.07,        # (conservé pour compatibilité) Coefficient radial k1 de la lentille (IMX708)
+
     # --- Géométrie de vol : translation réelle du drone (dérive du marqueur dans l'image) ---
     "position_drift_scale": 1.0,     # Facteur d'échelle sur la vitesse horizontale intégrée (X,Y du drone)
     "wind_gust_sigma_m": 0.35,       # Amplitude de la dérive latérale due au vent (Random Walk, en mètres)
     "wind_gust_tau_s": 0.40,         # Constante de temps de la dérive du vent (corrélation lente)
 
+    # --- Entrée / sortie de cadre : le marqueur apparaît d'un côté et traverse l'image ---
+    "trajectories_per_marker": 4,        # Nb de trajectoires (vols) générées par marqueur
+    "entry_touch_factor_range": (0.65, 0.9),  # Position d'entrée (fraction du rayon d'empreinte au sol)
+    "entry_angle_jitter_deg": 45.0,      # Dispersion angulaire de l'entrée autour du cap moyen
+
     # --- Rendu du sol : textures hétérogènes + homographie complète ---
-    "ground_texture_types": ["wood", "grass", "asphalt", "concrete", "tile", "dirt"],
+    "ground_texture_types": ["gym_floor", "wood", "tile", "concrete", "grass", "asphalt", "dirt"],
+    "ground_texture_weights": [0.55, 0.12, 0.10, 0.08, 0.06, 0.05, 0.04],  # gymnase privilégié
     "ground_texture_size_m": 24.0,   # Taille physique du patch de texture généré (mètres, carré)
     "ground_texels_per_meter": 50,   # Résolution de la texture (pixels de texture par mètre réel)
 
-    # --- Éclairage : position du soleil, ombre réaliste, AE, vignetage ---
+    # --- Lignes de terrain (gymnase) : couleurs, épaisseur, éléments dessinés ---
+    "gym_line_colors_bgr": {
+        "white": (235, 235, 235),
+        "yellow": (40, 210, 235),
+        "red": (55, 55, 195),
+        "blue": (195, 110, 50),
+    },
+    "gym_court_line_width_px_range": (4, 9),
+    "gym_logo_prob": 0.6,           # Probabilité d'ajouter un logo/cercle central stylisé
+    "gym_number_prob": 0.5,         # Probabilité d'ajouter des numéros peints au sol
+
+    # --- Reflets du parquet (spéculaire) ---
+    "specular_highlight_count_range": (0, 3),
+    "specular_highlight_intensity_range": (60, 160),
+    "specular_highlight_length_frac_range": (0.15, 0.45),  # fraction de la diagonale image
+
+    # --- Éclairage : soleil (extérieur), néons (gymnase), balance des blancs, AE, vignetage ---
     "sun_elevation_range_deg": (25.0, 75.0),   # Hauteur du soleil dans le ciel (degrés)
     "shadow_length_coeff": 0.12,     # Coefficient reliant altitude drone -> longueur d'ombre projetée
     "shadow_blur_base_px": 5,        # Flou de base de l'ombre (pixels)
     "shadow_blur_altitude_coeff": 3.0,  # L'ombre devient plus floue (pénombre) quand l'altitude augmente
+    "neon_flicker_freq_hz": 100.0,     # Fréquence de scintillement des tubes néon/LED (secteur redressé)
+    "neon_flicker_amplitude_range": (0.03, 0.10),
+    "neon_green_tint_range": (0.0, 0.08),   # Dominante verte typique des tubes fluorescents
+    "wb_temp_range": (-1.0, 1.0),     # Balance des blancs : -1 froid, +1 chaud
+    "wb_green_range": (-0.2, 0.3),    # Composante verte additionnelle de la balance des blancs
+    "wb_drift_sigma": 0.35,           # Amplitude de dérive lente de la WB pendant la trajectoire
+    "wb_drift_tau_s": 0.4,            # Constante de temps de la dérive de WB
     "ae_gain_range": (0.7, 1.3),      # Gain d'auto-exposition appliqué frame à frame
     "vignette_strength_range": (0.15, 0.35),  # Intensité du vignetage optique
 
-    # --- Bruit capteur (chrominance) & profondeur de champ ---
+    # --- Bruit capteur réaliste (IMX708) & profondeur de champ ---
     "noise_luma_sigma_range": (2, 8),     # Bruit gaussien sur la luminance (Y)
     "noise_chroma_sigma_range": (4, 14),  # Bruit plus fort sur la chrominance (Cr/Cb), typique petits capteurs
     "chroma_lowlight_boost": 1.5,         # Amplification du bruit chroma dans les zones sombres
+    "shot_noise_coeff": 0.35,             # Bruit de photon (Poisson) : sigma ∝ sqrt(intensité)
+    "hot_pixel_count_range": (0, 4),      # Nb de pixels chauds (défauts capteur, fixes par trajectoire)
+    "hot_pixel_value": 255,
     "focus_error_range_m": (-1.0, 1.0),   # Erreur de mise au point autofocus par rapport à l'altitude initiale
     "dof_blur_base_px": 3,                # Flou de base (mise au point parfaite)
     "dof_blur_coeff_px_per_m": 2.0,       # Flou additionnel par mètre d'écart à la distance de mise au point
@@ -99,6 +131,28 @@ CONFIG = {
     "autofocus_hunt_event_prob": 0.15,    # Probabilité d'un "saut" de mise au point pendant la trajectoire
     "autofocus_hunt_len_frames_range": (15, 60),  # Durée (en frames) d'un saut de mise au point
     "autofocus_hunt_extra_ksize": 6,      # Flou additionnel pendant un saut de mise au point
+
+    # --- Vibrations mécaniques (moteur/hélice/servos) ---
+    "vibration_amplitude_px_range": (0.3, 1.2),   # Amplitude du tremblement image par image
+    "vibration_blur_coeff": 2.0,                  # Flou de mouvement additionnel induit par la vibration
+
+    # --- Distorsion optique complète (Brown-Conrady : radiale k1,k2,k3 + tangentielle p1,p2) ---
+    "k1_distortion_range": (-0.14, -0.04),
+    "k2_distortion_range": (-0.02, 0.02),
+    "k3_distortion_range": (-0.01, 0.01),
+    "p1_distortion_range": (-0.004, 0.004),
+    "p2_distortion_range": (-0.004, 0.004),
+
+    # --- Compression JPEG (artefacts de codec appliqués avant sauvegarde) ---
+    "jpeg_quality_choices": [70, 75, 80, 85, 90, 95],
+
+    # --- Marqueur imparfait (papier réel, impression, gondolement) ---
+    "marker_black_level_range": (10, 45),    # Le "noir" du marqueur n'est jamais parfaitement noir
+    "marker_white_level_range": (200, 245),  # Le "blanc" n'est jamais parfaitement blanc
+    "marker_paper_noise_sigma": 4.0,         # Grain du papier
+    "marker_warp_prob": 0.5,                 # Probabilité d'un léger gondolement (papier non plan)
+    "marker_warp_amplitude_px_range": (1.0, 4.0),
+    "marker_corner_lift_prob": 0.35,         # Probabilité d'un coin décollé/froissé (assombrissement local)
 
     # Intensité des effets
     "autofocus_blur_prob": 0.3,    # (conservé pour compatibilité, non utilisé par le nouveau pipeline DOF)
@@ -108,12 +162,14 @@ CONFIG = {
     "markers_dir": "Markers_5",
 
     # --- Dataset ROI pour CNN (fusion de Prepare.py) ---
+    # Ici on privilégie la DIVERSITÉ des positions/échelles plutôt que la cohérence de trajectoire :
+    # chaque crop est tiré indépendamment, sans lien avec les crops voisins dans le temps.
     "roi_output_dir": "cnn_roi_dataset",
     "roi_size": (128, 128),           # Taille fixe d'entrée pour le CNN
-    "roi_augmentation_factor": 5,     # 7500 images caméra x 5
-    "roi_margin_factor": 1.2,         # Marge autour du marqueur (contexte visuel)
-    "roi_jitter_px": 20,              # Bruit de tracking simulé (translation aléatoire du crop)
-    "roi_scale_range": (1.0, 1.4),    # Variation de zoom arrière du crop (plans plus larges)
+    "roi_augmentation_factor": 3,     # 3 crops indépendants et aléatoires par image caméra
+    "roi_margin_factor": 1.2,         # Marge de base autour du marqueur (contexte visuel)
+    "roi_scale_range": (1.0, 1.6),    # Variation de zoom arrière du crop (plans plus ou moins larges)
+    "roi_position_jitter_frac": 0.6,  # Décentrage aléatoire du marqueur dans le crop (fraction de la marge)
 }
 
 # ==============================================================================
@@ -130,12 +186,12 @@ def _multiscale_noise(h, w, scales_sigmas):
     return total
 
 
-def generate_ground_texture(texture_type, size_px):
+def generate_ground_texture(texture_type, size_px, config=None):
     """
     Génère un grand patch de texture de sol (carré size_px x size_px) selon le type demandé.
     Toutes les couleurs sont en BGR (convention OpenCV). Ce patch est ensuite plaqué au sol
     via une véritable homographie 3D (voir compute_ground_homography / warp_ground_texture),
-    exactement comme le marqueur, pour que les lattes/brins/dalles convergent vers le même
+    exactement comme le marqueur, pour que les lattes/brins/dalles/lignes de terrain convergent
     point de fuite en cas de Roll/Pitch.
     """
     h = w = size_px
@@ -151,6 +207,71 @@ def generate_ground_texture(texture_type, size_px):
             if end_x < w:
                 tex[:, end_x - 1:end_x] = np.clip(base * 0.7, 0, 255)
         tex += _multiscale_noise(h, w, [(4, 6.0), (40, 3.0)])[..., None]
+
+    elif texture_type == "gym_floor":
+        cfg = config or {}
+        # Parquet de gymnase : plus clair et plus "glacé" que le bois extérieur (le glacis est
+        # géré séparément par apply_specular_highlights, ici on pose juste la teinte de base).
+        base = np.array([70, 120, 165], dtype=np.float32)
+        tex = np.tile(base, (h, w, 1))
+        plank_w = 45
+        for x in range(0, w, plank_w):
+            factor = random.uniform(0.94, 1.06)
+            end_x = min(x + plank_w, w)
+            tex[:, x:end_x] = np.clip(base * factor, 0, 255)
+        tex += _multiscale_noise(h, w, [(4, 4.0), (50, 3.0)])[..., None]
+        tex = np.clip(tex, 0, 255).astype(np.uint8)
+
+        line_colors = cfg.get("gym_line_colors_bgr", {
+            "white": (235, 235, 235), "yellow": (40, 210, 235),
+            "red": (55, 55, 195), "blue": (195, 110, 50),
+        })
+        lw_lo, lw_hi = cfg.get("gym_court_line_width_px_range", (4, 9))
+
+        def line_w():
+            return random.randint(lw_lo, lw_hi)
+
+        def rand_color():
+            return random.choice(list(line_colors.values()))
+
+        # Rectangle du terrain principal + ligne médiane
+        margin_px = int(0.08 * size_px)
+        p1 = (margin_px, margin_px)
+        p2 = (size_px - margin_px, size_px - margin_px)
+        cv2.rectangle(tex, p1, p2, rand_color(), line_w())
+        cv2.line(tex, (margin_px, size_px // 2), (size_px - margin_px, size_px // 2), rand_color(), line_w())
+        cv2.line(tex, (size_px // 2, margin_px), (size_px // 2, size_px - margin_px), rand_color(), line_w())
+
+        # Cercle central + 2 cercles secondaires (ronds de basket / lancers francs, style générique)
+        cv2.circle(tex, (size_px // 2, size_px // 2), int(0.10 * size_px), rand_color(), line_w())
+        for cy_c in (margin_px + int(0.18 * size_px), size_px - margin_px - int(0.18 * size_px)):
+            cv2.circle(tex, (size_px // 2, cy_c), int(0.07 * size_px), rand_color(), max(2, line_w() - 2))
+
+        # Zones peintes (clés/raquettes) : deux rectangles proches des extrémités
+        key_w, key_h = int(0.16 * size_px), int(0.24 * size_px)
+        cv2.rectangle(tex, (size_px // 2 - key_w // 2, margin_px),
+                      (size_px // 2 + key_w // 2, margin_px + key_h), rand_color(), max(2, line_w() - 1))
+        cv2.rectangle(tex, (size_px // 2 - key_w // 2, size_px - margin_px - key_h),
+                      (size_px // 2 + key_w // 2, size_px - margin_px), rand_color(), max(2, line_w() - 1))
+
+        # Logo stylisé au centre (forme abstraite, pas de marque réelle)
+        if random.random() < cfg.get("gym_logo_prob", 0.6):
+            logo_color = rand_color()
+            logo_r = int(0.05 * size_px)
+            cv2.circle(tex, (size_px // 2, size_px // 2), logo_r, logo_color, -1)
+            cv2.circle(tex, (size_px // 2, size_px // 2), int(logo_r * 0.55), tuple(int(c) for c in base), -1)
+
+        # Numéros peints au sol, dispersés
+        if random.random() < cfg.get("gym_number_prob", 0.5):
+            for _ in range(random.randint(1, 3)):
+                num = str(random.randint(0, 99))
+                pos = (random.randint(margin_px, size_px - margin_px - 60),
+                       random.randint(margin_px + 60, size_px - margin_px))
+                cv2.putText(tex, num, pos, cv2.FONT_HERSHEY_SIMPLEX,
+                            random.uniform(1.5, 3.0), rand_color(), random.randint(3, 6), cv2.LINE_AA)
+
+        tex = tex.astype(np.float32)
+        tex += _multiscale_noise(h, w, [(3, 2.5)])[..., None]
 
     elif texture_type == "grass":
         base = np.array([35, 90, 35], dtype=np.float32)  # BGR : vert dominant
@@ -388,6 +509,30 @@ def generate_flight_trajectory(config, marker_id=None):
     gust_y = smooth_random_walk(n, dt, tau=config["wind_gust_tau_s"], sigma=config["wind_gust_sigma_m"])
     pos_x = pos_x + gust_x
     pos_y = pos_y + gust_y
+
+    # --- Point d'entrée : le marqueur ne démarre plus centré, il apparaît d'un côté de l'image ---
+    # Calculé à partir du rayon d'empreinte au sol (altitude x FOV) et du cap moyen de la trajectoire,
+    # avec une dispersion angulaire pour varier le côté/l'angle d'entrée d'une trajectoire à l'autre.
+    width, height = config["output_resolution"]
+    fx0, fy0, _, _ = get_camera_intrinsics(width, height)
+    half_diag_px = np.sqrt((width / 2.0) ** 2 + (height / 2.0) ** 2)
+    footprint_radius_m = (half_diag_px / fx0) * alt0
+
+    total_dx = pos_x[-1] - pos_x[0]
+    total_dy = pos_y[-1] - pos_y[0]
+    if abs(total_dx) + abs(total_dy) > 1e-6:
+        heading_angle = np.arctan2(total_dy, total_dx)
+    else:
+        heading_angle = np.radians(yaw0)
+
+    angle_jitter = np.radians(random.uniform(-config["entry_angle_jitter_deg"], config["entry_angle_jitter_deg"]))
+    entry_angle = heading_angle + angle_jitter
+    entry_radius = footprint_radius_m * random.uniform(*config["entry_touch_factor_range"])
+
+    entry_x = entry_radius * np.cos(entry_angle)
+    entry_y = entry_radius * np.sin(entry_angle)
+    pos_x = pos_x - entry_x
+    pos_y = pos_y - entry_y
 
     return {
         "t": t,
@@ -635,43 +780,77 @@ def apply_rolling_shutter(image, shift_max_px):
     return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
-def apply_lens_distortion(image, k1):
+def apply_lens_distortion(image, k1, k2=0.0, k3=0.0, p1=0.0, p2=0.0):
+    """
+    Distorsion optique complète (modèle Brown-Conrady) : radiale (k1, k2, k3) + tangentielle
+    (p1, p2, due au léger désalignement lentille/capteur). k1 seul ne modélisait qu'un
+    barrel/pincushion simple ; k2/k3 affinent la courbe aux bords, p1/p2 introduisent
+    une asymétrie (l'image n'est plus symétrique en distorsion).
+    """
     h, w = image.shape[:2]
     f = max(h, w)
     cx, cy = w / 2.0, h / 2.0
-    
+
     grid_x, grid_y = np.meshgrid(np.arange(w), np.arange(h))
-    
     x = (grid_x - cx) / f
     y = (grid_y - cy) / f
-    r2 = x**2 + y**2
-    
-    distortion = 1.0 + k1 * r2
-    
-    map_x = (x * distortion * f + cx).astype(np.float32)
-    map_y = (y * distortion * f + cy).astype(np.float32)
-    
+    r2 = x ** 2 + y ** 2
+    r4 = r2 ** 2
+    r6 = r2 * r4
+
+    radial = 1.0 + k1 * r2 + k2 * r4 + k3 * r6
+    x_tan = 2 * p1 * x * y + p2 * (r2 + 2 * x ** 2)
+    y_tan = p1 * (r2 + 2 * y ** 2) + 2 * p2 * x * y
+
+    map_x = ((x * radial + x_tan) * f + cx).astype(np.float32)
+    map_y = ((y * radial + y_tan) * f + cy).astype(np.float32)
+
     return cv2.remap(image, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
-def apply_chrominance_noise(image, luma_sigma_range, chroma_sigma_range, lowlight_boost):
+def generate_hot_pixel_mask(width, height, count_range):
+    """Défauts capteur fixes (hot pixels) : mêmes positions sur toute une trajectoire, comme un vrai capteur."""
+    mask = np.zeros((height, width), dtype=bool)
+    n = random.randint(*count_range)
+    for _ in range(n):
+        yx = (random.randint(0, height - 1), random.randint(0, width - 1))
+        mask[yx] = True
+    return mask
+
+
+def apply_sensor_noise(image, config, hot_pixel_mask=None):
     """
-    Bruit typique des petits capteurs (IMX708) : plus fort sur la chrominance (Cr/Cb) que
-    sur la luminance (Y), et amplifié dans les zones sombres (bruit de basse lumière).
+    Bruit capteur IMX708 réaliste :
+    - bruit de photon (Poisson/shot noise) proportionnel à sqrt(intensité),
+    - bruit de chrominance plus fort que la luminance, amplifié en basse lumière,
+    - pixels chauds fixes (défauts capteur).
     """
+    luma_sigma_range = config["noise_luma_sigma_range"]
+    chroma_sigma_range = config["noise_chroma_sigma_range"]
+    lowlight_boost = config["chroma_lowlight_boost"]
+    shot_coeff = config["shot_noise_coeff"]
+
     luma_sigma = random.uniform(*luma_sigma_range)
     chroma_sigma = random.uniform(*chroma_sigma_range)
 
     ycc = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb).astype(np.float32)
     luma = ycc[:, :, 0]
-    lowlight_factor = 1.0 + (1.0 - luma / 255.0) * lowlight_boost
+    darkness = 1.0 - luma / 255.0
+    lowlight_factor = 1.0 + darkness * lowlight_boost
 
-    ycc[:, :, 0] += np.random.normal(0, luma_sigma, luma.shape)
+    shot_sigma = np.sqrt(np.clip(luma, 1.0, 255.0)) * shot_coeff
+
+    ycc[:, :, 0] += np.random.normal(0, 1.0, luma.shape) * (luma_sigma + shot_sigma * 0.3)
     ycc[:, :, 1] += np.random.normal(0, chroma_sigma, luma.shape) * lowlight_factor
     ycc[:, :, 2] += np.random.normal(0, chroma_sigma, luma.shape) * lowlight_factor
 
     ycc = np.clip(ycc, 0, 255).astype(np.uint8)
-    return cv2.cvtColor(ycc, cv2.COLOR_YCrCb2BGR)
+    out = cv2.cvtColor(ycc, cv2.COLOR_YCrCb2BGR)
+
+    if hot_pixel_mask is not None and hot_pixel_mask.any():
+        out[hot_pixel_mask] = config["hot_pixel_value"]
+
+    return out
 
 
 def apply_vignette(image, strength):
@@ -700,6 +879,119 @@ def apply_focus_blur(image, ksize):
     if ksize % 2 == 0:
         ksize += 1
     return cv2.GaussianBlur(image, (ksize, ksize), 0)
+
+
+def apply_specular_highlights(image, config):
+    """
+    Reflets spéculaires du parquet ciré : quelques traînées lumineuses (néons/soleil réfléchis)
+    qui peuvent saturer localement une partie de l'image, y compris sur le marqueur lui-même.
+    """
+    h, w = image.shape[:2]
+    n = random.randint(*config["specular_highlight_count_range"])
+    if n == 0:
+        return image
+
+    overlay = np.zeros((h, w), dtype=np.float32)
+    diag = np.sqrt(h ** 2 + w ** 2)
+    for _ in range(n):
+        length = diag * random.uniform(*config["specular_highlight_length_frac_range"])
+        width_streak = random.uniform(8, 30)
+        angle = random.uniform(0, 180)
+        cx = random.uniform(0, w)
+        cy = random.uniform(0, h)
+
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        ang_rad = np.radians(angle)
+        u = (xx - cx) * np.cos(ang_rad) + (yy - cy) * np.sin(ang_rad)
+        v = -(xx - cx) * np.sin(ang_rad) + (yy - cy) * np.cos(ang_rad)
+        blob = np.exp(-(u ** 2) / (2 * (length / 2.5) ** 2) - (v ** 2) / (2 * width_streak ** 2))
+        overlay += blob * random.uniform(*config["specular_highlight_intensity_range"])
+
+    out = image.astype(np.float32) + overlay[..., None]
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def apply_neon_and_white_balance(image, t_abs, config, wb_temp, wb_green):
+    """
+    Éclairage de gymnase (néons/LED sur secteur redressé -> scintillement ~100Hz + légère
+    dominante verte typique des tubes fluorescents) combiné à la balance des blancs de la
+    caméra (dérive lente froid/chaud/verdâtre pendant la trajectoire).
+    """
+    freq = config["neon_flicker_freq_hz"]
+    flicker_amp = random.uniform(*config["neon_flicker_amplitude_range"])
+    flicker_gain = 1.0 + flicker_amp * math.sin(2 * math.pi * freq * t_abs + random.uniform(0, 2 * math.pi) * 0.05)
+
+    green_tint = random.uniform(*config["neon_green_tint_range"])
+
+    r_gain = 1.0 + 0.20 * wb_temp
+    b_gain = 1.0 - 0.20 * wb_temp
+    g_gain = 1.0 + 0.12 * wb_green + green_tint
+
+    out = image.astype(np.float32) * flicker_gain
+    out[:, :, 0] *= b_gain   # B
+    out[:, :, 1] *= g_gain   # G
+    out[:, :, 2] *= r_gain   # R
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def apply_vibration_jitter(image, amplitude_px):
+    """Micro-tremblement mécanique (moteur/hélice/servos) : léger décalage image par image."""
+    if amplitude_px <= 0:
+        return image
+    dx = np.random.normal(0, amplitude_px)
+    dy = np.random.normal(0, amplitude_px)
+    M = np.float32([[1, 0, dx], [0, 1, dy]])
+    return cv2.warpAffine(image, M, (image.shape[1], image.shape[0]),
+                           flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+
+def apply_jpeg_compression(image, quality_choices):
+    """Simule la compression JPEG embarquée de la caméra (artefacts de blocs, perte chroma)."""
+    quality = random.choice(quality_choices)
+    ok, encoded = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+    if not ok:
+        return image
+    return cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+
+
+def apply_marker_imperfections(marker_rgba, config):
+    """
+    Marqueur physique imparfait : contraste d'impression imparfait (noir/blanc non purs),
+    grain papier, léger gondolement (papier non plan), coin décollé/froissé. Calculé UNE FOIS
+    par trajectoire (le même marqueur physique reste le même tout au long du vol).
+    """
+    h, w = marker_rgba.shape[:2]
+    out = marker_rgba.astype(np.float32).copy()
+
+    black_level = random.uniform(*config["marker_black_level_range"])
+    white_level = random.uniform(*config["marker_white_level_range"])
+    normalized = out[:, :, :3] / 255.0
+    out[:, :, :3] = black_level + normalized * (white_level - black_level)
+
+    paper_noise = np.random.normal(0, config["marker_paper_noise_sigma"], (h, w, 1))
+    out[:, :, :3] = np.clip(out[:, :, :3] + paper_noise, 0, 255)
+
+    if random.random() < config["marker_warp_prob"]:
+        amp = random.uniform(*config["marker_warp_amplitude_px_range"])
+        freq = random.uniform(1.0, 2.0)
+        phase = random.uniform(0, 2 * np.pi)
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        disp_x = amp * np.sin(2 * np.pi * freq * yy / h + phase)
+        disp_y = amp * np.cos(2 * np.pi * freq * xx / w + phase)
+        map_x = (xx + disp_x).astype(np.float32)
+        map_y = (yy + disp_y).astype(np.float32)
+        out = cv2.remap(out, map_x, map_y, interpolation=cv2.INTER_LINEAR,
+                         borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+
+    if random.random() < config["marker_corner_lift_prob"]:
+        corner = random.choice([(0, 0), (0, w), (h, 0), (h, w)])
+        yy, xx = np.mgrid[0:h, 0:w]
+        dist = np.sqrt((yy - corner[0]) ** 2 + (xx - corner[1]) ** 2)
+        radius = min(h, w) * random.uniform(0.2, 0.4)
+        falloff = np.clip(1.0 - dist / radius, 0, 1) * random.uniform(0.3, 0.6)
+        out[:, :, :3] *= (1.0 - falloff[..., None])
+
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def composite_images(floor, shadow, marker):
@@ -734,168 +1026,228 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 # ==============================================================================
 
 def process_single_marker(svg_path):
-    """Fonction exécutée en parallèle pour générer les 500 images d'un marqueur."""
+    """Fonction exécutée en parallèle : génère plusieurs trajectoires (vols) pour un même marqueur."""
     # Sécurise l'aléa pour éviter les doublons de trajectoire entre processus
     random.seed(os.getpid() + int(time.time() * 1000) % 1000)
     np.random.seed(os.getpid() + int(time.time() * 1000) % 1000)
-    
+
     marker_id = extract_marker_id(svg_path)
-    marker_base = load_marker(svg_path, size=600)
-    
-    if marker_base is None:
+    marker_base_clean = load_marker(svg_path, size=600)
+
+    if marker_base_clean is None:
         return 0, 0
-        
+
     output_dir = CONFIG["output_dir"]
     frames_per_traj = CONFIG["frames_per_trajectory"]
     width, height = CONFIG["output_resolution"]
     fx, _, _, _ = get_camera_intrinsics(width, height)
     dt_frame = CONFIG["trajectory_duration_s"] / frames_per_traj
-    
+
     local_detector = ArucoDetector()
     local_detected_count = 0
-    
-    traj = generate_flight_trajectory(CONFIG, marker_id=marker_id)
-    trajectory_id = f"traj_{marker_id}_{int(random.random() * 1e6):06d}"
-    imu = simulate_mpu6050_imu(traj, dt_frame, CONFIG)
+    total_written = 0
 
-    # --- Environnement de la trajectoire (fixe pendant les ~500 frames = ~1s de vol) ---
-    texture_type = random.choice(CONFIG["ground_texture_types"])
-    tex_size_px = int(CONFIG["ground_texture_size_m"] * CONFIG["ground_texels_per_meter"])
-    ground_texture = generate_ground_texture(texture_type, tex_size_px)
+    n_trajectories = CONFIG["trajectories_per_marker"]
 
-    sun_az_deg = random.uniform(0.0, 360.0)
-    sun_elev_deg = random.uniform(*CONFIG["sun_elevation_range_deg"])
+    for traj_idx in range(n_trajectories):
+        traj = generate_flight_trajectory(CONFIG, marker_id=marker_id)
+        trajectory_id = f"traj_{marker_id}_{traj_idx}_{int(random.random() * 1e6):06d}"
+        imu = simulate_mpu6050_imu(traj, dt_frame, CONFIG)
 
-    alt0 = float(traj["altitude"][0])
-    focus_distance_m = float(np.clip(
-        alt0 + random.uniform(*CONFIG["focus_error_range_m"]),
-        CONFIG["altitude_min"], CONFIG["altitude_max"]
-    ))
+        # --- Environnement de la trajectoire (fixe pendant tout le vol) ---
+        texture_type = random.choices(
+            CONFIG["ground_texture_types"], weights=CONFIG.get("ground_texture_weights"), k=1
+        )[0]
+        tex_size_px = int(CONFIG["ground_texture_size_m"] * CONFIG["ground_texels_per_meter"])
+        ground_texture = generate_ground_texture(texture_type, tex_size_px, CONFIG)
 
-    hunt_start, hunt_end = -1, -1
-    if random.random() < CONFIG["autofocus_hunt_event_prob"]:
-        hunt_len = random.randint(*CONFIG["autofocus_hunt_len_frames_range"])
-        hunt_start = random.randint(0, max(0, frames_per_traj - 1))
-        hunt_end = min(frames_per_traj, hunt_start + hunt_len)
+        sun_az_deg = random.uniform(0.0, 360.0)
+        sun_elev_deg = random.uniform(*CONFIG["sun_elevation_range_deg"])
 
-    for img_idx in range(frames_per_traj):
-        altitude = float(traj["altitude"][img_idx])
-        roll = float(traj["roll"][img_idx])
-        pitch = float(traj["pitch"][img_idx])
-        yaw = float(traj["yaw"][img_idx])
-        yaw_rate = float(traj["yaw_rate"][img_idx])
-        speed = float(traj["forward_speed"][img_idx])
-        drone_x = float(traj["pos_x"][img_idx])
-        drone_y = float(traj["pos_y"][img_idx])
-
-        marker_w, shadow_w, pts_img, ground_H = apply_drone_rotation(
-            marker_base, width, height, altitude, roll, pitch, yaw,
-            drone_x, drone_y, sun_az_deg, sun_elev_deg, CONFIG
-        )
-
-        # Sol entier plaqué avec la MÊME homographie que le marqueur (même point de fuite)
-        scene = warp_ground_texture(ground_texture, ground_H, CONFIG["ground_texels_per_meter"], width, height)
-
-        scene = composite_images(scene, shadow_w, marker_w)
-        
-        motion_dist_m = speed * CONFIG["exposure_time"]
-        motion_blur_len = motion_dist_m * (fx / altitude)
-        motion_angle = 90.0 + yaw_rate * CONFIG["exposure_time"] * 10.0 + random.uniform(-3, 3)
-        scene = apply_motion_blur(scene, motion_blur_len, motion_angle)
-        
-        lateral_speed = speed * np.sin(np.radians(yaw))
-        shutter_shift_m = lateral_speed * CONFIG["rolling_shutter_readout"]
-        shutter_shift_px = shutter_shift_m * (fx / altitude)
-        scene = apply_rolling_shutter(scene, shutter_shift_px)
-        
-        scene = apply_lens_distortion(scene, CONFIG["k1_distortion"])
-
-        # Profondeur de champ : flou proportionnel à l'écart avec la distance de mise au point,
-        # + éventuel "saut" de mise au point (hunting) sur une fenêtre de frames.
-        defocus_m = abs(altitude - focus_distance_m)
-        ksize = CONFIG["dof_blur_base_px"] + defocus_m * CONFIG["dof_blur_coeff_px_per_m"]
-        if hunt_start <= img_idx < hunt_end:
-            ksize += CONFIG["autofocus_hunt_extra_ksize"]
-        ksize = min(ksize, CONFIG["dof_max_ksize"])
-        scene = apply_focus_blur(scene, ksize)
-
-        vignette_strength = random.uniform(*CONFIG["vignette_strength_range"])
-        scene = apply_vignette(scene, vignette_strength)
-
-        ae_gain = random.uniform(*CONFIG["ae_gain_range"])
-        scene = apply_auto_exposure(scene, ae_gain)
-
-        scene = apply_chrominance_noise(
-            scene, CONFIG["noise_luma_sigma_range"], CONFIG["noise_chroma_sigma_range"],
-            CONFIG["chroma_lowlight_boost"]
-        )
-        
-        detected_markers = local_detector.detect(scene)
-        is_detected = any(m["id"] == int(marker_id) for m in detected_markers)
-        if is_detected:
-            local_detected_count += 1
-        
-        marker_size_px = calculate_marker_size(pts_img)
-        marker_fully_in_frame = bool(np.all(
-            (pts_img[:, 0] >= 0) & (pts_img[:, 0] < width) &
-            (pts_img[:, 1] >= 0) & (pts_img[:, 1] < height)
+        alt0 = float(traj["altitude"][0])
+        focus_distance_m = float(np.clip(
+            alt0 + random.uniform(*CONFIG["focus_error_range_m"]),
+            CONFIG["altitude_min"], CONFIG["altitude_max"]
         ))
-        
-        filename_base = f"marker_{marker_id}_{img_idx:03d}"
-        png_path = os.path.join(output_dir, f"{filename_base}.png")
-        cv2.imwrite(png_path, scene)
-        
-        json_data = {
-            "marker_id": int(marker_id),
-            "trajectory_id": trajectory_id,
-            "maneuver": traj["maneuver"],
-            "frame_index": int(img_idx),
-            "timestamp_s": round(float(img_idx * dt_frame), 4),
-            "distance_m": round(float(altitude), 2),
-            "roll_deg": round(float(roll), 1),
-            "pitch_deg": round(float(pitch), 1),
-            "yaw_deg": round(float(yaw), 1),
-            "yaw_rate_deg_s": round(float(yaw_rate), 2),
-            "marker_pixels": int(marker_size_px),
-            "marker_fully_in_frame": marker_fully_in_frame,
-            "aruco_corners": pts_img.tolist(),
-            "drone_speed_ms": round(float(speed), 2),
-            "drone_pos_m": [round(drone_x, 3), round(drone_y, 3)],
-            "camera": "Raspberry Pi Camera v3",
-            "detected_by_bench_detector": bool(is_detected),
 
-            "environment": {
-                "ground_texture": texture_type,
-                "sun_azimuth_deg": round(sun_az_deg, 1),
-                "sun_elevation_deg": round(sun_elev_deg, 1),
-                "focus_distance_m": round(focus_distance_m, 2),
-                "autofocus_hunting": bool(hunt_start <= img_idx < hunt_end),
-                "ae_gain": round(float(ae_gain), 3),
-                "vignette_strength": round(float(vignette_strength), 3),
-            },
+        hunt_start, hunt_end = -1, -1
+        if random.random() < CONFIG["autofocus_hunt_event_prob"]:
+            hunt_len = random.randint(*CONFIG["autofocus_hunt_len_frames_range"])
+            hunt_start = random.randint(0, max(0, frames_per_traj - 1))
+            hunt_end = min(frames_per_traj, hunt_start + hunt_len)
 
-            "imu_mpu6050": {
-                "roll_deg": round(float(imu["roll_imu"][img_idx]), 2),
-                "pitch_deg": round(float(imu["pitch_imu"][img_idx]), 2),
-                "yaw_deg": round(float(imu["yaw_imu"][img_idx]), 2),
-                "gyro_dps": [
-                    round(float(imu["gyro_x"][img_idx]), 4),
-                    round(float(imu["gyro_y"][img_idx]), 4),
-                    round(float(imu["gyro_z"][img_idx]), 4)
-                ],
-                "accel_g": [
-                    round(float(imu["accel_x"][img_idx]), 4),
-                    round(float(imu["accel_y"][img_idx]), 4),
-                    round(float(imu["accel_z"][img_idx]), 4)
-                ]
+        # Marqueur physique imparfait (papier réel) : identique sur toute la trajectoire
+        marker_base = apply_marker_imperfections(marker_base_clean, CONFIG)
+
+        # Pixels chauds fixes (défaut capteur) : identiques sur toute la trajectoire
+        hot_pixel_mask = generate_hot_pixel_mask(width, height, CONFIG["hot_pixel_count_range"])
+
+        # Distorsion optique complète tirée une fois (la lentille ne change pas en vol)
+        k1 = random.uniform(*CONFIG["k1_distortion_range"])
+        k2 = random.uniform(*CONFIG["k2_distortion_range"])
+        k3 = random.uniform(*CONFIG["k3_distortion_range"])
+        p1 = random.uniform(*CONFIG["p1_distortion_range"])
+        p2 = random.uniform(*CONFIG["p2_distortion_range"])
+
+        # Balance des blancs : dérive lente (froid/chaud/verdâtre) le long de la trajectoire
+        wb_temp0 = random.uniform(*CONFIG["wb_temp_range"])
+        wb_green0 = random.uniform(*CONFIG["wb_green_range"])
+        wb_temp_path = wb_temp0 + smooth_random_walk(
+            frames_per_traj, dt_frame, tau=CONFIG["wb_drift_tau_s"], sigma=CONFIG["wb_drift_sigma"]
+        )
+        wb_green_path = wb_green0 + smooth_random_walk(
+            frames_per_traj, dt_frame, tau=CONFIG["wb_drift_tau_s"], sigma=CONFIG["wb_drift_sigma"] * 0.5
+        )
+
+        # Instant de référence pour le scintillement néon (déphasage aléatoire par trajectoire)
+        t0_abs = random.uniform(0.0, 10.0)
+
+        has_appeared = False
+
+        for img_idx in range(frames_per_traj):
+            altitude = float(traj["altitude"][img_idx])
+            roll = float(traj["roll"][img_idx])
+            pitch = float(traj["pitch"][img_idx])
+            yaw = float(traj["yaw"][img_idx])
+            yaw_rate = float(traj["yaw_rate"][img_idx])
+            speed = float(traj["forward_speed"][img_idx])
+            drone_x = float(traj["pos_x"][img_idx])
+            drone_y = float(traj["pos_y"][img_idx])
+
+            marker_w, shadow_w, pts_img, ground_H = apply_drone_rotation(
+                marker_base, width, height, altitude, roll, pitch, yaw,
+                drone_x, drone_y, sun_az_deg, sun_elev_deg, CONFIG
+            )
+
+            xs, ys = pts_img[:, 0], pts_img[:, 1]
+            overlaps_frame = (xs.max() >= 0) and (xs.min() <= width - 1) and (ys.max() >= 0) and (ys.min() <= height - 1)
+            marker_fully_in_frame = bool(
+                (xs.min() >= 0) and (xs.max() <= width - 1) and (ys.min() >= 0) and (ys.max() <= height - 1)
+            )
+
+            if overlaps_frame:
+                has_appeared = True
+            elif has_appeared:
+                # Le marqueur est sorti du cadre après y être apparu : on arrête cette trajectoire ici.
+                break
+
+            # Sol entier plaqué avec la MÊME homographie que le marqueur (même point de fuite)
+            scene = warp_ground_texture(ground_texture, ground_H, CONFIG["ground_texels_per_meter"], width, height)
+            scene = composite_images(scene, shadow_w, marker_w)
+
+            # Reflets spéculaires du parquet (peuvent saturer une partie du marqueur)
+            scene = apply_specular_highlights(scene, CONFIG)
+
+            # Vibrations mécaniques : léger décalage + flou de mouvement additionnel
+            vib_amp = random.uniform(*CONFIG["vibration_amplitude_px_range"])
+            scene = apply_vibration_jitter(scene, vib_amp)
+
+            motion_dist_m = speed * CONFIG["exposure_time"]
+            motion_blur_len = motion_dist_m * (fx / altitude) + vib_amp * CONFIG["vibration_blur_coeff"]
+            motion_angle = 90.0 + yaw_rate * CONFIG["exposure_time"] * 10.0 + random.uniform(-3, 3)
+            scene = apply_motion_blur(scene, motion_blur_len, motion_angle)
+
+            lateral_speed = speed * np.sin(np.radians(yaw))
+            shutter_shift_m = lateral_speed * CONFIG["rolling_shutter_readout"]
+            shutter_shift_px = shutter_shift_m * (fx / altitude)
+            scene = apply_rolling_shutter(scene, shutter_shift_px)
+
+            scene = apply_lens_distortion(scene, k1, k2, k3, p1, p2)
+
+            # Profondeur de champ : flou proportionnel à l'écart avec la distance de mise au point,
+            # + éventuel "saut" de mise au point (hunting) sur une fenêtre de frames.
+            defocus_m = abs(altitude - focus_distance_m)
+            ksize = CONFIG["dof_blur_base_px"] + defocus_m * CONFIG["dof_blur_coeff_px_per_m"]
+            if hunt_start <= img_idx < hunt_end:
+                ksize += CONFIG["autofocus_hunt_extra_ksize"]
+            ksize = min(ksize, CONFIG["dof_max_ksize"])
+            scene = apply_focus_blur(scene, ksize)
+
+            # Néons/LED (scintillement + dominante verte) + balance des blancs de la caméra
+            t_abs = t0_abs + img_idx * dt_frame
+            scene = apply_neon_and_white_balance(
+                scene, t_abs, CONFIG, float(wb_temp_path[img_idx]), float(wb_green_path[img_idx])
+            )
+
+            vignette_strength = random.uniform(*CONFIG["vignette_strength_range"])
+            scene = apply_vignette(scene, vignette_strength)
+
+            ae_gain = random.uniform(*CONFIG["ae_gain_range"])
+            scene = apply_auto_exposure(scene, ae_gain)
+
+            scene = apply_sensor_noise(scene, CONFIG, hot_pixel_mask=hot_pixel_mask)
+
+            scene = apply_jpeg_compression(scene, CONFIG["jpeg_quality_choices"])
+
+            detected_markers = local_detector.detect(scene)
+            is_detected = any(m["id"] == int(marker_id) for m in detected_markers)
+            if is_detected:
+                local_detected_count += 1
+
+            marker_size_px = calculate_marker_size(pts_img)
+
+            filename_base = f"marker_{marker_id}_t{traj_idx}_{img_idx:03d}"
+            png_path = os.path.join(output_dir, f"{filename_base}.png")
+            cv2.imwrite(png_path, scene)
+
+            json_data = {
+                "marker_id": int(marker_id),
+                "trajectory_id": trajectory_id,
+                "maneuver": traj["maneuver"],
+                "frame_index": int(img_idx),
+                "timestamp_s": round(float(img_idx * dt_frame), 4),
+                "distance_m": round(float(altitude), 2),
+                "roll_deg": round(float(roll), 1),
+                "pitch_deg": round(float(pitch), 1),
+                "yaw_deg": round(float(yaw), 1),
+                "yaw_rate_deg_s": round(float(yaw_rate), 2),
+                "marker_pixels": int(marker_size_px),
+                "marker_fully_in_frame": marker_fully_in_frame,
+                "aruco_corners": pts_img.tolist(),
+                "drone_speed_ms": round(float(speed), 2),
+                "drone_pos_m": [round(drone_x, 3), round(drone_y, 3)],
+                "camera": "Raspberry Pi Camera v3",
+                "detected_by_bench_detector": bool(is_detected),
+
+                "environment": {
+                    "ground_texture": texture_type,
+                    "sun_azimuth_deg": round(sun_az_deg, 1),
+                    "sun_elevation_deg": round(sun_elev_deg, 1),
+                    "focus_distance_m": round(focus_distance_m, 2),
+                    "autofocus_hunting": bool(hunt_start <= img_idx < hunt_end),
+                    "ae_gain": round(float(ae_gain), 3),
+                    "vignette_strength": round(float(vignette_strength), 3),
+                    "vibration_px": round(float(vib_amp), 3),
+                    "wb_temp": round(float(wb_temp_path[img_idx]), 3),
+                    "wb_green": round(float(wb_green_path[img_idx]), 3),
+                    "lens_distortion": {"k1": round(k1, 4), "k2": round(k2, 4), "k3": round(k3, 4),
+                                        "p1": round(p1, 5), "p2": round(p2, 5)},
+                },
+
+                "imu_mpu6050": {
+                    "roll_deg": round(float(imu["roll_imu"][img_idx]), 2),
+                    "pitch_deg": round(float(imu["pitch_imu"][img_idx]), 2),
+                    "yaw_deg": round(float(imu["yaw_imu"][img_idx]), 2),
+                    "gyro_dps": [
+                        round(float(imu["gyro_x"][img_idx]), 4),
+                        round(float(imu["gyro_y"][img_idx]), 4),
+                        round(float(imu["gyro_z"][img_idx]), 4)
+                    ],
+                    "accel_g": [
+                        round(float(imu["accel_x"][img_idx]), 4),
+                        round(float(imu["accel_y"][img_idx]), 4),
+                        round(float(imu["accel_z"][img_idx]), 4)
+                    ]
+                }
             }
-        }
-        
-        json_path = os.path.join(output_dir, f"{filename_base}.json")
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(json_data, f, indent=4)
-            
-    return frames_per_traj, local_detected_count
+
+            json_path = os.path.join(output_dir, f"{filename_base}.json")
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, indent=4)
+
+            total_written += 1
+
+    return total_written, local_detected_count
 
 # ==============================================================================
 # PIPELINE PRINCIPAL MULTI-PROCESSUS
@@ -905,116 +1257,124 @@ def process_single_marker(svg_path):
 # ÉTAPE 2 : DATASET ROI POUR CNN (fusion de Prepare.py)
 # ==============================================================================
 # Repart des images "caméra" (frame complète 640x480) générées ci-dessus et produit
-# un second dataset : des crops recentrés/agrandis autour du marqueur (128x128 par défaut),
-# avec augmentation (jitter de position + zoom arrière aléatoire) pour simuler l'incertitude
-# d'un premier stade de détection/tracking en amont du CNN de pose.
+# un second dataset : des crops recentrés/agrandis autour du marqueur (128x128 par défaut).
+# Ici on privilégie la DIVERSITÉ des positions/échelles plutôt que la cohérence temporelle :
+# chaque crop est tiré indépendamment (position du marqueur dans le crop, zoom) sans lien
+# avec les frames voisines de la même trajectoire — pas de "suivi" simulé.
 
 def create_augmented_roi_dataset(config):
-    """
-    Parcourt le dataset caméra (images brutes 640x480), extrait la ROI autour du marqueur
-    avec une taille de découpe FIXE pour préserver l'information d'altitude (Z),
-    applique des augmentations (jitter, échelle) et sauvegarde le tout dans cnn_roi_dataset/.
-    """
-    input_dir = config["output_dir"]
-    output_dir = "./cnn_roi_dataset"
+    dataset_dir = config["output_dir"]
+    output_dir = config["roi_output_dir"]
+    roi_size = config["roi_size"]
+    augmentation_factor = config["roi_augmentation_factor"]
+    margin_factor = config["roi_margin_factor"]
+    position_jitter_frac = config["roi_position_jitter_frac"]
+    scale_lo, scale_hi = config["roi_scale_range"]
+
     os.makedirs(output_dir, exist_ok=True)
 
-    camera_jsons = sorted(glob.glob(os.path.join(input_dir, "*.json")))
-    if not camera_jsons:
-        print(f"❌ Aucune donnée brute trouvée dans '{input_dir}'.")
+    image_paths = sorted(glob.glob(os.path.join(dataset_dir, "*.png")))
+    print(f"🔍 [ROI] {len(image_paths)} images caméra trouvées dans '{dataset_dir}'.")
+
+    if len(image_paths) == 0:
+        print(f"❌ [ROI] Aucune image trouvée dans '{dataset_dir}'. Génère d'abord le dataset caméra.")
         return 0
 
-    augmentation_factor = config["roi_augmentation_factor"]
-    jitter_px = config["roi_jitter_px"]
-    scale_lo, scale_hi = config["roi_scale_range"]
-    roi_w, roi_h = config["roi_size"]
+    local_detector = None  # instancié à la demande, seulement si des coins manquent dans le JSON
+    count = 0
 
-    # 🎯 CONFIGURATION DE LA MARGE FIXE 
-    # Au lieu de s'adapté à la taille du marqueur, on découpe une zone fixe (ex: 180x180 pixels).
-    # Si le drone est loin, le marqueur sera petit dans ce carré. S'il est proche, il sera grand.
-    base_fixed_margin = 90  # Marge de 90px autour du centre = carré de 180x180 dans l'image 640x480
-    
-    roi_count = 0
-
-    for json_path in camera_jsons:
-        img_path = json_path.replace(".json", ".png")
-        if not os.path.exists(img_path):
-            continue
-
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-
-        corners = data.get("aruco_corners", [])
-        if not corners or len(corners) < 4:
+    for img_path in image_paths:
+        json_path = img_path.replace(".png", ".json")
+        if not os.path.exists(json_path):
             continue
 
         img = cv2.imread(img_path)
         if img is None:
             continue
-        h_img, w_img, _ = img.shape
+        h_img, w_img = img.shape[:2]
 
-        # Trouver le centre exact du marqueur à l'écran
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        try:
+            drone_pos = data.get("drone_pos_m", [data.get("pos_x", 0.0), data.get("pos_y", 0.0)])
+            x = drone_pos[0]
+            y = drone_pos[1]
+            z = data.get("distance_m", data.get("pos_z", data.get("z", 0.0)))
+
+            gt_labels = [
+                x, y, z,
+                data["roll_deg"], data["pitch_deg"], data["yaw_deg"]
+            ]
+            marker_id = data.get("marker_id")
+            corners = data.get("aruco_corners", None)
+        except KeyError:
+            continue
+
+        # Ground truth (coins projetés) en priorité ; détection ArUco en secours uniquement
+        # pour d'anciens JSON qui n'auraient pas encore le champ "aruco_corners".
+        if corners is None:
+            if local_detector is None:
+                local_detector = ArucoDetector()
+            detected_markers = local_detector.detect(img)
+            match = next((m for m in detected_markers if marker_id is None or m["id"] == int(marker_id)), None)
+            if match is None or "corners" not in match:
+                continue
+            corners = match["corners"]
+
         corners = np.array(corners)
-        center_x = int(np.mean(corners[:, 0]))
-        center_y = int(np.mean(corners[:, 1]))
+        x_coords = corners[:, 0]
+        y_coords = corners[:, 1]
+        xmin, xmax = int(min(x_coords)), int(max(x_coords))
+        ymin, ymax = int(min(y_coords)), int(max(y_coords))
 
-        base_name = os.path.splitext(os.path.basename(img_path))[0]
+        center_x = (xmin + xmax) // 2
+        center_y = (ymin + ymax) // 2
+        box_w = xmax - xmin
+        box_h = ymax - ymin
 
-        # ✨ Correction de la récupération des données : on reconstruit le vecteur cible
-        # à partir des clés réelles présentes dans le dataset caméra brut.
-        xyz_rpy = [
-            data.get("x_m", 0.0),
-            data.get("y_m", 0.0),
-            data.get("distance_m", data.get("z_m", 0.0)), # Capture distance_m ou z_m
-            data.get("roll_deg", 0.0),
-            data.get("pitch_deg", 0.0),
-            data.get("yaw_deg", 0.0)
-        ]
+        # Marge autour du marqueur pour inclure le contexte visuel du drone
+        margin = int(max(box_w, box_h, 1) * margin_factor)
 
         for i in range(augmentation_factor):
-            if i == 0:
-                dx, dy = 0, 0
-                scale_modifier = 1.0
-            else:
-                dx = random.randint(-jitter_px, jitter_px)
-                dy = random.randint(-jitter_px, jitter_px)
-                scale_modifier = random.uniform(scale_lo, scale_hi)
+            # Chaque crop est indépendant : échelle et décentrage du marqueur tirés librement,
+            # sans lien avec les autres augmentations ni avec les frames voisines.
+            scale_modifier = random.uniform(scale_lo, scale_hi)
+            current_margin = int(margin * scale_modifier)
 
-            # Application de l'augmentation d'échelle sur notre boîte fixe
-            current_margin = int(base_fixed_margin * scale_modifier)
+            max_jitter = int(current_margin * position_jitter_frac)
+            dx = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
+            dy = random.randint(-max_jitter, max_jitter) if max_jitter > 0 else 0
 
             crop_xmin = max(0, center_x - current_margin + dx)
             crop_xmax = min(w_img, center_x + current_margin + dx)
             crop_ymin = max(0, center_y - current_margin + dy)
             crop_ymax = min(h_img, center_y + current_margin + dy)
 
-            crop_w = crop_xmax - crop_xmin
-            crop_h = crop_ymax - crop_ymin
-
-            if crop_w <= 10 or crop_h <= 10:
+            roi = img[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
+            if roi.size == 0:
                 continue
+            roi_resized = cv2.resize(roi, roi_size)
 
-            # Extraction et redimensionnement strict en 128x128
-            roi_img = img[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
-            roi_resized = cv2.resize(roi_img, (roi_w, roi_h), interpolation=cv2.INTER_LINEAR)
+            base_name = os.path.basename(img_path).replace(".png", "")
+            new_img_name = f"{base_name}_aug_{i}.png"
+            new_json_name = f"{base_name}_aug_{i}.json"
 
-            out_img_name = f"{base_name}_roi_{i}.png"
-            out_json_name = f"{base_name}_roi_{i}.json"
-            
-            cv2.imwrite(os.path.join(output_dir, out_img_name), roi_resized)
+            cv2.imwrite(os.path.join(output_dir, new_img_name), roi_resized)
 
-            # Sauvegarde des métadonnées formatées avec la clé attendue par le CNN
-            roi_data = {
-                "marker_id": data["marker_id"],
-                "target_pose_xyz_rpy": xyz_rpy,          # 🔥 Corrigé ici : injecte la structure [6]
-                "aruco_corners": data["aruco_corners"]
+            output_data = {
+                "marker_id": marker_id,
+                "img_channels_height_width": [3, roi_size[0], roi_size[1]],
+                "target_pose_xyz_rpy": [float(v) for v in gt_labels],
             }
-            with open(os.path.join(output_dir, out_json_name), 'w') as f_out:
-                json.dump(roi_data, f_out, indent=4)
 
-            roi_count += 1
+            with open(os.path.join(output_dir, new_json_name), 'w', encoding='utf-8') as out_f:
+                json.dump(output_data, out_f, indent=4)
 
-    return roi_count
+            count += 1
+
+    print(f"✅ [ROI] Dataset généré dans '{output_dir}/' : {count} images.")
+    return count
 
 
 def main():
@@ -1040,18 +1400,21 @@ def main():
         svg_files = sorted(svg_files, key=extract_marker_id)
         num_markers = len(svg_files)
         frames_per_traj = CONFIG["frames_per_trajectory"]
-        total_images = num_markers * frames_per_traj
+        n_traj = CONFIG["trajectories_per_marker"]
+        total_images_max = num_markers * n_traj * frames_per_traj
 
         print(f"-> {num_markers} marqueurs détectés.")
         print(f"-> Allocation de 4 processus parallèles...")
-        print(f"-> [1/2] Génération du dataset CAMÉRA : {total_images} images ({num_markers} marqueurs x {frames_per_traj} frames/trajectoire).")
+        print(f"-> [1/2] Génération du dataset CAMÉRA : {num_markers} marqueurs x {n_traj} trajectoires x "
+              f"jusqu'à {frames_per_traj} frames (le marqueur peut sortir du cadre avant la fin -> "
+              f"trajectoire arrêtée plus tôt), soit au maximum {total_images_max} images.")
 
         start_time = time.time()
 
         total_processed = 0
         total_detected = 0
 
-        print_progress_bar(0, total_images, prefix='Progression:', suffix='Terminé', length=50)
+        print_progress_bar(0, total_images_max, prefix='Progression:', suffix='Terminé', length=50)
 
         # Utilisation de ProcessPoolExecutor fixé à 4 workers maximum comme demandé
         with ProcessPoolExecutor(max_workers=4) as executor:
@@ -1062,18 +1425,21 @@ def main():
                     processed, detected = future.result()
                     total_processed += processed
                     total_detected += detected
-                    # Mise à jour globale immédiate
-                    print_progress_bar(total_processed, total_images, prefix='Progression:', suffix='Terminé', length=50)
+                    # Mise à jour globale immédiate (le total réel est <= total_images_max)
+                    print_progress_bar(min(total_processed, total_images_max), total_images_max,
+                                        prefix='Progression:', suffix='Terminé', length=50)
                 except Exception as e:
                     svg_path = futures[future]
                     print(f"\n[ERREUR] Le processus pour {svg_path} a planté : {e}")
+        print()
 
         elapsed_time = time.time() - start_time
-        success_rate = (total_detected / total_images) * 100 if total_images > 0 else 0
+        success_rate = (total_detected / total_processed) * 100 if total_processed > 0 else 0
 
         print(f"\n[SUCCÈS] Dataset CAMÉRA généré dans '{output_dir}/' !")
-        print(f"⏱️ Temps d'exécution total : {elapsed_time:.2f} secondes (soit {total_images / elapsed_time:.1f} images/s)")
-        print(f"🎯 Taux de détectabilité initial par ArucoDetector : {success_rate:.2f} % ({total_detected}/{total_images})")
+        print(f"📸 {total_processed} images réellement écrites (sur {total_images_max} au maximum théorique).")
+        print(f"⏱️ Temps d'exécution total : {elapsed_time:.2f} secondes (soit {total_processed / elapsed_time:.1f} images/s)")
+        print(f"🎯 Taux de détectabilité initial par ArucoDetector : {success_rate:.2f} % ({total_detected}/{total_processed})")
     else:
         print("-> [1/2] Dataset caméra ignoré (--skip-camera).")
 

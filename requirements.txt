@@ -1,0 +1,8 @@
+cairosvg==2.9.0
+numpy==2.5.1
+onnxruntime==1.27.0
+opencv_contrib_python==5.0.0.93
+opencv_python==4.13.0.92
+opencv_python_headless==4.13.0.92
+Pillow==12.3.0
+torch==2.13.0+cpu

@@ -1,0 +1,21 @@
+{
+    "marker_id": 13,
+    "split": "val",
+    "img_channels_height_width": [
+        3,
+        128,
+        128
+    ],
+    "crop_center_xy_norm": [
+        0.1797,
+        0.275
+    ],
+    "target_pose_xyz_rpy": [
+        0.7143,
+        -2.2743,
+        3.2329,
+        25.87,
+        -13.05,
+        49.57
+    ]
+}

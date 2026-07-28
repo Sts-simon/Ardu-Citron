@@ -1,2 +1,5 @@
 ~/Applications/arduino-ide/arduino-ide*.AppImage
 source OBD_venv/bin/activate
+python generate_dataset.py --skip-verification --clean
+python train_cnn.py
+

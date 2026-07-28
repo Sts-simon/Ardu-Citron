@@ -1,0 +1,21 @@
+{
+    "marker_id": 6,
+    "split": "train",
+    "img_channels_height_width": [
+        3,
+        128,
+        128
+    ],
+    "crop_center_xy_norm": [
+        0.9094,
+        0.9208
+    ],
+    "target_pose_xyz_rpy": [
+        -1.1257,
+        1.239,
+        4.7269,
+        -31.4,
+        16.68,
+        7.48
+    ]
+}

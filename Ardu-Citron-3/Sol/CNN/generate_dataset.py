@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Projet Ardu-Citron : Simulateur de capteur et générateur de dataset ArUco réaliste (Version Multi-processus 4 Coeurs).
+Auteur : Spécialiste Vision par Ordinateur & Simulation
+"""
+
 import os
 import io
 import argparse
@@ -150,23 +158,22 @@ CONFIG = {
     "autofocus_blur_prob": 0.3,    # (conservé pour compatibilité, non utilisé par le nouveau pipeline DOF)
 
     # Chemins des fichiers
-    # Les deux datasets sont TOTALEMENT SÉPARÉS, avec des générateurs différents :
-    #  - "verification_output_dir" : dataset de VÉRIFICATION du programme complet, à base de
-    #    trajectoires continues (vol, IMU, dérive, entrée/sortie de cadre). Sert à valider le
-    #    système entier dans le temps, PAS à entraîner le CNN.
-    #  - "cnn_output_dir" : dataset D'ENTRAÎNEMENT du CNN, exemples 100% indépendants (pas de
-    #    trajectoire), répartis directement en train/ et val/ pour la diversité.
     "verification_output_dir": "Dataset_Verification",
     "markers_dir": "Markers_5",
 
     # --- Dataset CNN (train/val) : exemples indépendants, sans trajectoire (diversité maximale) ---
     "cnn_output_dir": "Dataset_CNN",
-    "cnn_examples_per_marker": 3000,   # Nb d'exemples indépendants générés par marqueur
+    "cnn_examples_per_marker": 500,   # Nb d'exemples indépendants générés par marqueur
     "cnn_val_fraction": 0.15,         # Fraction réservée à la validation (85% train / 15% val)
     "roi_size": (128, 128),           # Taille fixe d'entrée pour le CNN
     "roi_margin_factor": 1.2,         # Marge de base autour du marqueur (contexte visuel)
     "roi_scale_range": (1.0, 1.6),    # Variation de zoom arrière du crop (plans plus ou moins larges)
     "roi_position_jitter_frac": 0.6,  # Décentrage aléatoire du marqueur dans le crop (fraction de la marge)
+
+    # --- Garantie de visibilité du marqueur (dataset CNN) ---
+    "cnn_min_visible_fraction": 0.2,   # Fraction mini de la bbox du marqueur qui doit être dans le cadre
+    "cnn_min_visible_px": 12,          # Taille mini (px) de la portion visible, largeur ET hauteur
+    "cnn_placement_max_attempts": 25,  # Nb de re-tirages de position avant d'abandonner cet exemple
 }
 
 # ==============================================================================
@@ -184,13 +191,6 @@ def _multiscale_noise(h, w, scales_sigmas):
 
 
 def generate_ground_texture(texture_type, size_px, config=None):
-    """
-    Génère un grand patch de texture de sol (carré size_px x size_px) selon le type demandé.
-    Toutes les couleurs sont en BGR (convention OpenCV). Ce patch est ensuite plaqué au sol
-    via une véritable homographie 3D (voir compute_ground_homography / warp_ground_texture),
-    exactement comme le marqueur, pour que les lattes/brins/dalles/lignes de terrain convergent
-    point de fuite en cas de Roll/Pitch.
-    """
     h = w = size_px
 
     if texture_type == "wood":
@@ -207,8 +207,6 @@ def generate_ground_texture(texture_type, size_px, config=None):
 
     elif texture_type == "gym_floor":
         cfg = config or {}
-        # Parquet de gymnase : plus clair et plus "glacé" que le bois extérieur (le glacis est
-        # géré séparément par apply_specular_highlights, ici on pose juste la teinte de base).
         base = np.array([70, 120, 165], dtype=np.float32)
         tex = np.tile(base, (h, w, 1))
         plank_w = 45
@@ -231,7 +229,6 @@ def generate_ground_texture(texture_type, size_px, config=None):
         def rand_color():
             return random.choice(list(line_colors.values()))
 
-        # Rectangle du terrain principal + ligne médiane
         margin_px = int(0.08 * size_px)
         p1 = (margin_px, margin_px)
         p2 = (size_px - margin_px, size_px - margin_px)
@@ -239,26 +236,22 @@ def generate_ground_texture(texture_type, size_px, config=None):
         cv2.line(tex, (margin_px, size_px // 2), (size_px - margin_px, size_px // 2), rand_color(), line_w())
         cv2.line(tex, (size_px // 2, margin_px), (size_px // 2, size_px - margin_px), rand_color(), line_w())
 
-        # Cercle central + 2 cercles secondaires (ronds de basket / lancers francs, style générique)
         cv2.circle(tex, (size_px // 2, size_px // 2), int(0.10 * size_px), rand_color(), line_w())
         for cy_c in (margin_px + int(0.18 * size_px), size_px - margin_px - int(0.18 * size_px)):
             cv2.circle(tex, (size_px // 2, cy_c), int(0.07 * size_px), rand_color(), max(2, line_w() - 2))
 
-        # Zones peintes (clés/raquettes) : deux rectangles proches des extrémités
         key_w, key_h = int(0.16 * size_px), int(0.24 * size_px)
         cv2.rectangle(tex, (size_px // 2 - key_w // 2, margin_px),
                       (size_px // 2 + key_w // 2, margin_px + key_h), rand_color(), max(2, line_w() - 1))
         cv2.rectangle(tex, (size_px // 2 - key_w // 2, size_px - margin_px - key_h),
                       (size_px // 2 + key_w // 2, size_px - margin_px), rand_color(), max(2, line_w() - 1))
 
-        # Logo stylisé au centre (forme abstraite, pas de marque réelle)
         if random.random() < cfg.get("gym_logo_prob", 0.6):
             logo_color = rand_color()
             logo_r = int(0.05 * size_px)
             cv2.circle(tex, (size_px // 2, size_px // 2), logo_r, logo_color, -1)
             cv2.circle(tex, (size_px // 2, size_px // 2), int(logo_r * 0.55), tuple(int(c) for c in base), -1)
 
-        # Numéros peints au sol, dispersés
         if random.random() < cfg.get("gym_number_prob", 0.5):
             for _ in range(random.randint(1, 3)):
                 num = str(random.randint(0, 99))
@@ -271,18 +264,18 @@ def generate_ground_texture(texture_type, size_px, config=None):
         tex += _multiscale_noise(h, w, [(3, 2.5)])[..., None]
 
     elif texture_type == "grass":
-        base = np.array([35, 90, 35], dtype=np.float32)  # BGR : vert dominant
+        base = np.array([35, 90, 35], dtype=np.float32)
         tex = np.tile(base, (h, w, 1))
         blades = _multiscale_noise(h, w, [(2, 18.0), (15, 10.0), (60, 6.0)])[..., None]
         tex += blades * np.array([0.4, 1.0, 0.4], dtype=np.float32)
 
     elif texture_type == "asphalt":
-        base = np.array([55, 55, 58], dtype=np.float32)  # gris sombre neutre
+        base = np.array([55, 55, 58], dtype=np.float32)
         tex = np.tile(base, (h, w, 1))
         tex += _multiscale_noise(h, w, [(2, 10.0), (30, 4.0)])[..., None]
 
     elif texture_type == "concrete":
-        base = np.array([150, 150, 148], dtype=np.float32)  # gris clair
+        base = np.array([150, 150, 148], dtype=np.float32)
         tex = np.tile(base, (h, w, 1))
         tex += _multiscale_noise(h, w, [(3, 8.0), (50, 6.0)])[..., None]
 
@@ -298,7 +291,7 @@ def generate_ground_texture(texture_type, size_px, config=None):
         tex += _multiscale_noise(h, w, [(5, 4.0)])[..., None]
 
     elif texture_type == "dirt":
-        base = np.array([45, 75, 110], dtype=np.float32)  # brun terre battue
+        base = np.array([45, 75, 110], dtype=np.float32)
         tex = np.tile(base, (h, w, 1))
         tex += _multiscale_noise(h, w, [(2, 14.0), (20, 10.0), (70, 6.0)])[..., None]
 
@@ -310,12 +303,6 @@ def generate_ground_texture(texture_type, size_px, config=None):
 
 
 def compute_ground_homography(R, altitude, drone_x, drone_y, fx, fy, cx, cy):
-    """
-    Homographie exacte 3x3 mappant un point du sol (X, Y en mètres, dans le même repère
-    que les coins du marqueur) vers un pixel de l'image caméra. C'est la même transformation
-    géométrique (rotation caméra + perspective) que celle appliquée au marqueur : le sol
-    "hérite" donc de la même convergence de point de fuite en cas de Roll/Pitch.
-    """
     K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float64)
     A = np.array([
         [1.0, 0.0, -drone_x],
@@ -326,11 +313,9 @@ def compute_ground_homography(R, altitude, drone_x, drone_y, fx, fy, cx, cy):
 
 
 def warp_ground_texture(texture, ground_homography, texels_per_meter, width, height):
-    """Plaque la texture de sol (indexée en pixels) dans l'image caméra (indexée en pixels)."""
     tex_h, tex_w = texture.shape[:2]
     tex_cx, tex_cy = tex_w / 2.0, tex_h / 2.0
     tpm = float(texels_per_meter)
-    # T : pixel de texture -> mètres réels au sol (X, Y)
     T = np.array([
         [1.0 / tpm, 0.0, -tex_cx / tpm],
         [0.0, 1.0 / tpm, -tex_cy / tpm],
@@ -486,9 +471,6 @@ def generate_flight_trajectory(config, marker_id=None):
     forward_speed = V + smooth_random_walk(n, dt, tau=0.3, sigma=0.15) \
         + smooth_random_walk(n, dt, tau=tau_fast, sigma=0.08)
 
-    # --- Translation réelle du drone (X, Y) : le marqueur ne reste plus figé à (0,0) ---
-    # Un Pitch vers l'avant/arrière change la composante horizontale de la vitesse air ;
-    # le Yaw (cap) donne la direction de déplacement dans le plan horizontal.
     yaw_rad = np.radians(yaw)
     horizontal_speed = forward_speed * np.cos(np.radians(pitch))
     vx = horizontal_speed * np.cos(yaw_rad)
@@ -500,16 +482,11 @@ def generate_flight_trajectory(config, marker_id=None):
     pos_x -= pos_x[0]
     pos_y -= pos_y[0]
 
-    # Dérive latérale due au vent : Random Walk lent, indépendant du cap intentionnel.
-    # Peut pousser le marqueur dans les coins de l'image, voire hors du cadre.
     gust_x = smooth_random_walk(n, dt, tau=config["wind_gust_tau_s"], sigma=config["wind_gust_sigma_m"])
     gust_y = smooth_random_walk(n, dt, tau=config["wind_gust_tau_s"], sigma=config["wind_gust_sigma_m"])
     pos_x = pos_x + gust_x
     pos_y = pos_y + gust_y
 
-    # --- Point d'entrée : le marqueur ne démarre plus centré, il apparaît d'un côté de l'image ---
-    # Calculé à partir du rayon d'empreinte au sol (altitude x FOV) et du cap moyen de la trajectoire,
-    # avec une dispersion angulaire pour varier le côté/l'angle d'entrée d'une trajectoire à l'autre.
     width, height = config["output_resolution"]
     fx0, fy0, _, _ = get_camera_intrinsics(width, height)
     half_diag_px = np.sqrt((width / 2.0) ** 2 + (height / 2.0) ** 2)
@@ -660,14 +637,6 @@ def project_points(pts_w, R, fx, fy, cx, cy):
 
 def apply_drone_rotation(marker_rgba, width, height, altitude, roll_deg, pitch_deg, yaw_deg,
                           drone_x, drone_y, sun_az_deg, sun_elev_deg, config):
-    """
-    Projette le marqueur (et son ombre) dans l'image caméra en tenant compte de :
-    - l'attitude du drone (roll/pitch/yaw),
-    - sa position réelle (drone_x, drone_y) par rapport au marqueur (dérive de vol + vent),
-    - la direction du soleil (sun_az_deg, sun_elev_deg) pour l'ombre portée.
-    Renvoie également l'homographie 3x3 du plan sol, pour que le sol entier (textures,
-    lattes, dalles...) subisse exactement la même transformation géométrique.
-    """
     fx, fy, cx, cy = get_camera_intrinsics(width, height)
     R = compute_rotation_matrix(roll_deg, pitch_deg, yaw_deg)
 
@@ -680,7 +649,6 @@ def apply_drone_rotation(marker_rgba, width, height, altitude, roll_deg, pitch_d
     ])
     pts_img = project_points(pts_w, R, fx, fy, cx, cy)
 
-    # Ombre portée : longueur et direction dépendent de l'altitude et du vecteur soleil.
     shadow_len = config["shadow_length_coeff"] * altitude / max(np.tan(np.radians(sun_elev_deg)), 0.2)
     shadow_dx = shadow_len * np.cos(np.radians(sun_az_deg))
     shadow_dy = shadow_len * np.sin(np.radians(sun_az_deg))
@@ -713,7 +681,6 @@ def add_shadow(pts_src, pts_shadow_img, width, height, altitude, config):
         flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0,0)
     )
 
-    # Pénombre : l'ombre devient plus floue à mesure que l'altitude augmente.
     blur_size = int(config["shadow_blur_base_px"] + altitude * config["shadow_blur_altitude_coeff"])
     blur_size = max(3, blur_size)
     if blur_size % 2 == 0:
@@ -778,12 +745,6 @@ def apply_rolling_shutter(image, shift_max_px):
 
 
 def apply_lens_distortion(image, k1, k2=0.0, k3=0.0, p1=0.0, p2=0.0):
-    """
-    Distorsion optique complète (modèle Brown-Conrady) : radiale (k1, k2, k3) + tangentielle
-    (p1, p2, due au léger désalignement lentille/capteur). k1 seul ne modélisait qu'un
-    barrel/pincushion simple ; k2/k3 affinent la courbe aux bords, p1/p2 introduisent
-    une asymétrie (l'image n'est plus symétrique en distorsion).
-    """
     h, w = image.shape[:2]
     f = max(h, w)
     cx, cy = w / 2.0, h / 2.0
@@ -806,7 +767,6 @@ def apply_lens_distortion(image, k1, k2=0.0, k3=0.0, p1=0.0, p2=0.0):
 
 
 def generate_hot_pixel_mask(width, height, count_range):
-    """Défauts capteur fixes (hot pixels) : mêmes positions sur toute une trajectoire, comme un vrai capteur."""
     mask = np.zeros((height, width), dtype=bool)
     n = random.randint(*count_range)
     for _ in range(n):
@@ -816,12 +776,6 @@ def generate_hot_pixel_mask(width, height, count_range):
 
 
 def apply_sensor_noise(image, config, hot_pixel_mask=None):
-    """
-    Bruit capteur IMX708 réaliste :
-    - bruit de photon (Poisson/shot noise) proportionnel à sqrt(intensité),
-    - bruit de chrominance plus fort que la luminance, amplifié en basse lumière,
-    - pixels chauds fixes (défauts capteur).
-    """
     luma_sigma_range = config["noise_luma_sigma_range"]
     chroma_sigma_range = config["noise_chroma_sigma_range"]
     lowlight_boost = config["chroma_lowlight_boost"]
@@ -851,7 +805,6 @@ def apply_sensor_noise(image, config, hot_pixel_mask=None):
 
 
 def apply_vignette(image, strength):
-    """Assombrissement progressif et radial vers les coins (typique des optiques légères)."""
     h, w = image.shape[:2]
     yy, xx = np.mgrid[0:h, 0:w]
     ccx, ccy = w / 2.0, h / 2.0
@@ -863,13 +816,11 @@ def apply_vignette(image, strength):
 
 
 def apply_auto_exposure(image, gain):
-    """Simule les sautes de gain/exposition automatique de la caméra, frame à frame."""
     out = image.astype(np.float32) * gain
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def apply_focus_blur(image, ksize):
-    """Flou gaussien dont l'intensité (ksize) code la profondeur de champ / le défaut de mise au point."""
     ksize = int(round(ksize))
     if ksize < 3:
         return image
@@ -879,10 +830,6 @@ def apply_focus_blur(image, ksize):
 
 
 def apply_specular_highlights(image, config):
-    """
-    Reflets spéculaires du parquet ciré : quelques traînées lumineuses (néons/soleil réfléchis)
-    qui peuvent saturer localement une partie de l'image, y compris sur le marqueur lui-même.
-    """
     h, w = image.shape[:2]
     n = random.randint(*config["specular_highlight_count_range"])
     if n == 0:
@@ -909,11 +856,6 @@ def apply_specular_highlights(image, config):
 
 
 def apply_neon_and_white_balance(image, t_abs, config, wb_temp, wb_green):
-    """
-    Éclairage de gymnase (néons/LED sur secteur redressé -> scintillement ~100Hz + légère
-    dominante verte typique des tubes fluorescents) combiné à la balance des blancs de la
-    caméra (dérive lente froid/chaud/verdâtre pendant la trajectoire).
-    """
     freq = config["neon_flicker_freq_hz"]
     flicker_amp = random.uniform(*config["neon_flicker_amplitude_range"])
     flicker_gain = 1.0 + flicker_amp * math.sin(2 * math.pi * freq * t_abs + random.uniform(0, 2 * math.pi) * 0.05)
@@ -932,7 +874,6 @@ def apply_neon_and_white_balance(image, t_abs, config, wb_temp, wb_green):
 
 
 def apply_vibration_jitter(image, amplitude_px):
-    """Micro-tremblement mécanique (moteur/hélice/servos) : léger décalage image par image."""
     if amplitude_px <= 0:
         return image
     dx = np.random.normal(0, amplitude_px)
@@ -943,7 +884,6 @@ def apply_vibration_jitter(image, amplitude_px):
 
 
 def apply_jpeg_compression(image, quality_choices):
-    """Simule la compression JPEG embarquée de la caméra (artefacts de blocs, perte chroma)."""
     quality = random.choice(quality_choices)
     ok, encoded = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
     if not ok:
@@ -952,11 +892,6 @@ def apply_jpeg_compression(image, quality_choices):
 
 
 def apply_marker_imperfections(marker_rgba, config):
-    """
-    Marqueur physique imparfait : contraste d'impression imparfait (noir/blanc non purs),
-    grain papier, léger gondolement (papier non plan), coin décollé/froissé. Calculé UNE FOIS
-    par trajectoire (le même marqueur physique reste le même tout au long du vol).
-    """
     h, w = marker_rgba.shape[:2]
     out = marker_rgba.astype(np.float32).copy()
 
@@ -1005,18 +940,32 @@ def composite_images(floor, shadow, marker):
     return np.clip(final, 0, 255).astype(np.uint8)
 
 
+def compute_marker_visibility(pts_img, width, height):
+    xs, ys = pts_img[:, 0], pts_img[:, 1]
+    raw_xmin, raw_xmax = xs.min(), xs.max()
+    raw_ymin, raw_ymax = ys.min(), ys.max()
+    raw_area = max(raw_xmax - raw_xmin, 1e-6) * max(raw_ymax - raw_ymin, 1e-6)
+
+    clip_xmin = max(0.0, raw_xmin)
+    clip_xmax = min(float(width), raw_xmax)
+    clip_ymin = max(0.0, raw_ymin)
+    clip_ymax = min(float(height), raw_ymax)
+
+    visible_w = max(0.0, clip_xmax - clip_xmin)
+    visible_h = max(0.0, clip_ymax - clip_ymin)
+    visible_area = visible_w * visible_h
+    fraction = visible_area / raw_area if raw_area > 0 else 0.0
+
+    if visible_w <= 0 or visible_h <= 0:
+        return None, 0.0, 0.0, 0.0
+
+    return (int(clip_xmin), int(clip_xmax), int(clip_ymin), int(clip_ymax)), fraction, visible_w, visible_h
+
+
 def render_frame(marker_base, ground_texture, width, height, fx,
                   altitude, roll, pitch, yaw, yaw_rate, speed, drone_x, drone_y,
                   sun_az_deg, sun_elev_deg, focus_distance_m, autofocus_hunting,
                   k1, k2, k3, p1, p2, wb_temp, wb_green, t_abs, hot_pixel_mask, config):
-    """
-    Rend une frame complète (sol + marqueur + tous les effets caméra/optiques/environnementaux).
-    Fonction PARTAGÉE entre le dataset de VÉRIFICATION (trajectoires continues, voir
-    process_verification_marker) et le dataset CNN (exemples indépendants, voir
-    generate_cnn_examples_for_marker) : la physique du rendu est strictement identique dans
-    les deux cas, seule la façon dont les paramètres d'entrée sont générés diffère
-    (progression temporelle d'un vol vs tirage aléatoire indépendant par exemple).
-    """
     marker_w, shadow_w, pts_img, ground_H = apply_drone_rotation(
         marker_base, width, height, altitude, roll, pitch, yaw,
         drone_x, drone_y, sun_az_deg, sun_elev_deg, config
@@ -1086,13 +1035,6 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
 # ==============================================================================
 
 def process_verification_marker(svg_path):
-    """
-    Dataset de VÉRIFICATION du programme complet : génère plusieurs trajectoires (vols)
-    continues pour un même marqueur (dynamique de vol, IMU, dérive, entrée/sortie de cadre).
-    Sert à valider le système entier (tracking, fusion IMU, comportement dans le temps) —
-    PAS à entraîner le CNN (voir generate_cnn_examples_for_marker pour ça).
-    """
-    # Sécurise l'aléa pour éviter les doublons de trajectoire entre processus
     random.seed(os.getpid() + int(time.time() * 1000) % 1000)
     np.random.seed(os.getpid() + int(time.time() * 1000) % 1000)
 
@@ -1119,7 +1061,6 @@ def process_verification_marker(svg_path):
         trajectory_id = f"traj_{marker_id}_{traj_idx}_{int(random.random() * 1e6):06d}"
         imu = simulate_mpu6050_imu(traj, dt_frame, CONFIG)
 
-        # --- Environnement de la trajectoire (fixe pendant tout le vol) ---
         texture_type = random.choices(
             CONFIG["ground_texture_types"], weights=CONFIG.get("ground_texture_weights"), k=1
         )[0]
@@ -1141,20 +1082,15 @@ def process_verification_marker(svg_path):
             hunt_start = random.randint(0, max(0, frames_per_traj - 1))
             hunt_end = min(frames_per_traj, hunt_start + hunt_len)
 
-        # Marqueur physique imparfait (papier réel) : identique sur toute la trajectoire
         marker_base = apply_marker_imperfections(marker_base_clean, CONFIG)
-
-        # Pixels chauds fixes (défaut capteur) : identiques sur toute la trajectoire
         hot_pixel_mask = generate_hot_pixel_mask(width, height, CONFIG["hot_pixel_count_range"])
 
-        # Distorsion optique complète tirée une fois (la lentille ne change pas en vol)
         k1 = random.uniform(*CONFIG["k1_distortion_range"])
         k2 = random.uniform(*CONFIG["k2_distortion_range"])
         k3 = random.uniform(*CONFIG["k3_distortion_range"])
         p1 = random.uniform(*CONFIG["p1_distortion_range"])
         p2 = random.uniform(*CONFIG["p2_distortion_range"])
 
-        # Balance des blancs : dérive lente (froid/chaud/verdâtre) le long de la trajectoire
         wb_temp0 = random.uniform(*CONFIG["wb_temp_range"])
         wb_green0 = random.uniform(*CONFIG["wb_green_range"])
         wb_temp_path = wb_temp0 + smooth_random_walk(
@@ -1164,9 +1100,7 @@ def process_verification_marker(svg_path):
             frames_per_traj, dt_frame, tau=CONFIG["wb_drift_tau_s"], sigma=CONFIG["wb_drift_sigma"] * 0.5
         )
 
-        # Instant de référence pour le scintillement néon (déphasage aléatoire par trajectoire)
         t0_abs = random.uniform(0.0, 10.0)
-
         has_appeared = False
 
         for img_idx in range(frames_per_traj):
@@ -1179,7 +1113,6 @@ def process_verification_marker(svg_path):
             drone_x = float(traj["pos_x"][img_idx])
             drone_y = float(traj["pos_y"][img_idx])
 
-            # Test de présence dans le cadre AVANT le rendu complet (pour l'arrêt anticipé)
             R_check = compute_rotation_matrix(roll, pitch, yaw)
             fx_c, fy_c, cx_c, cy_c = get_camera_intrinsics(width, height)
             s_chk = CONFIG["marker_real_size"]
@@ -1195,7 +1128,6 @@ def process_verification_marker(svg_path):
             if overlaps_frame:
                 has_appeared = True
             elif has_appeared:
-                # Le marqueur est sorti du cadre après y être apparu : on arrête cette trajectoire ici.
                 break
 
             autofocus_hunting = hunt_start <= img_idx < hunt_end
@@ -1282,14 +1214,8 @@ def process_verification_marker(svg_path):
 # ==============================================================================
 # ÉTAPE 2 : DATASET CNN (train/val) — EXEMPLES INDÉPENDANTS, SANS TRAJECTOIRE
 # ==============================================================================
-# Contrairement au dataset de VÉRIFICATION ci-dessus (trajectoires continues, IMU, dérive
-# temporelle), ce dataset ne modélise AUCUN vol : chaque exemple est un tirage indépendant
-# (altitude, attitude, position du marqueur dans l'image, environnement, éclairage, optique,
-# imperfections du marqueur) rendu directement en crop ROI. Objectif : diversité maximale
-# pour l'entraînement du CNN, pas cohérence temporelle. Écrit directement en train/ et val/.
 
 def generate_cnn_examples_for_marker(svg_path):
-    """Génère cnn_examples_per_marker exemples indépendants pour un marqueur, répartis train/val."""
     random.seed(os.getpid() + int(time.time() * 1000) % 1000 + 7919)
     np.random.seed(os.getpid() + int(time.time() * 1000) % 1000 + 7919)
 
@@ -1315,7 +1241,6 @@ def generate_cnn_examples_for_marker(svg_path):
     n_train, n_val = 0, 0
 
     for ex_idx in range(n_examples):
-        # --- Tirage 100% indépendant : pas de dynamique de vol, juste de la diversité ---
         altitude = random.uniform(CONFIG["altitude_min"], CONFIG["altitude_max"])
         roll = random.uniform(-CONFIG["roll_max_deg"], CONFIG["roll_max_deg"])
         pitch = random.uniform(-CONFIG["pitch_max_deg"], CONFIG["pitch_max_deg"])
@@ -1323,13 +1248,29 @@ def generate_cnn_examples_for_marker(svg_path):
         yaw_rate = random.gauss(0.0, 8.0)
         speed = max(0.0, CONFIG["drone_speed"] + random.gauss(0.0, 1.0))
 
-        # Position du marqueur dans l'image : du centre jusqu'à (voire au-delà de) l'empreinte
-        # au sol -> diversité de cadrage (centré, coin, partiellement hors-champ).
         footprint_radius_m = (half_diag_px / fx) * altitude
-        place_radius = footprint_radius_m * random.uniform(0.0, 1.15)
-        place_angle = random.uniform(0.0, 2 * np.pi)
-        drone_x = -place_radius * np.cos(place_angle)
-        drone_y = -place_radius * np.sin(place_angle)
+        R_check = compute_rotation_matrix(roll, pitch, yaw)
+        s_chk = CONFIG["marker_real_size"]
+        base_xy_chk = np.array([[-s_chk/2, -s_chk/2], [s_chk/2, -s_chk/2], [s_chk/2, s_chk/2], [-s_chk/2, s_chk/2]])
+
+        drone_x = drone_y = None
+        for _attempt in range(CONFIG["cnn_placement_max_attempts"]):
+            place_radius = footprint_radius_m * random.uniform(0.0, 1.15)
+            place_angle = random.uniform(0.0, 2 * np.pi)
+            cand_x = -place_radius * np.cos(place_angle)
+            cand_y = -place_radius * np.sin(place_angle)
+
+            pts_w_chk = np.column_stack([base_xy_chk[:, 0] - cand_x, base_xy_chk[:, 1] - cand_y, np.full(4, altitude)])
+            pts_chk = project_points(pts_w_chk, R_check, fx, fy, cx, cy)
+            _, vis_fraction, vis_w, vis_h = compute_marker_visibility(pts_chk, width, height)
+
+            if (vis_fraction >= CONFIG["cnn_min_visible_fraction"]
+                    and vis_w >= CONFIG["cnn_min_visible_px"] and vis_h >= CONFIG["cnn_min_visible_px"]):
+                drone_x, drone_y = cand_x, cand_y
+                break
+
+        if drone_x is None:
+            continue
 
         texture_type = random.choices(
             CONFIG["ground_texture_types"], weights=CONFIG.get("ground_texture_weights"), k=1
@@ -1364,10 +1305,10 @@ def generate_cnn_examples_for_marker(svg_path):
             k1, k2, k3, p1, p2, wb_temp, wb_green, t_abs, hot_pixel_mask, CONFIG
         )
 
-        # --- Crop ROI directement à la génération (pas de fichier caméra intermédiaire) ---
-        xs, ys = pts_img[:, 0], pts_img[:, 1]
-        xmin, xmax = int(xs.min()), int(xs.max())
-        ymin, ymax = int(ys.min()), int(ys.max())
+        clipped, vis_fraction, vis_w, vis_h = compute_marker_visibility(pts_img, width, height)
+        if clipped is None:
+            continue
+        xmin, xmax, ymin, ymax = clipped
         center_x, center_y = (xmin + xmax) // 2, (ymin + ymax) // 2
         box_w, box_h = max(xmax - xmin, 1), max(ymax - ymin, 1)
         margin = int(max(box_w, box_h) * margin_factor)
@@ -1394,10 +1335,14 @@ def generate_cnn_examples_for_marker(svg_path):
 
         cv2.imwrite(os.path.join(split_dir, f"{base_name}.png"), roi_resized)
 
+        cx_norm = round(center_x / width, 4)
+        cy_norm = round(center_y / height, 4)
+
         output_data = {
             "marker_id": int(marker_id),
             "split": "val" if is_val else "train",
             "img_channels_height_width": [3, roi_size[0], roi_size[1]],
+            "crop_center_xy_norm": [cx_norm, cy_norm], # L'information vitale !
             "target_pose_xyz_rpy": [
                 round(float(drone_x), 4), round(float(drone_y), 4), round(float(altitude), 4),
                 round(float(roll), 2), round(float(pitch), 2), round(float(yaw), 2)
@@ -1414,13 +1359,64 @@ def generate_cnn_examples_for_marker(svg_path):
     return n_train, n_val
 
 
+def apply_clean_mode(config):
+    """Désactive tous les effets optiques, d'éclairage et d'imperfection pour créer un dataset 'parfait'."""
+    print("\n🧹 MODE CLEAN ACTIVÉ : Désactivation des effets réalistes (bruit, flou, distorsion, reflets...)")
+    
+    # 1. Optique et Caméra
+    config["exposure_time"] = 0.0               
+    config["rolling_shutter_readout"] = 0.0
+    config["autofocus_hunt_event_prob"] = 0.0
+    config["dof_blur_base_px"] = 0
+    config["dof_blur_coeff_px_per_m"] = 0.0
+    config["k1_distortion_range"] = (0.0, 0.0)
+    config["k2_distortion_range"] = (0.0, 0.0)
+    config["k3_distortion_range"] = (0.0, 0.0)
+    config["p1_distortion_range"] = (0.0, 0.0)
+    config["p2_distortion_range"] = (0.0, 0.0)
+    config["vignette_strength_range"] = (0.0, 0.0)
+
+    # 2. Capteur
+    config["noise_luma_sigma_range"] = (0, 0)
+    config["noise_chroma_sigma_range"] = (0, 0)
+    config["shot_noise_coeff"] = 0.0
+    config["hot_pixel_count_range"] = (0, 0)
+    config["ae_gain_range"] = (1.0, 1.0)
+    config["jpeg_quality_choices"] = [100]      
+
+    # 3. Éclairage
+    config["specular_highlight_count_range"] = (0, 0)
+    config["neon_flicker_amplitude_range"] = (0.0, 0.0)
+    config["neon_green_tint_range"] = (0.0, 0.0)
+    config["wb_temp_range"] = (0.0, 0.0)
+    config["wb_green_range"] = (0.0, 0.0)
+    config["wb_drift_sigma"] = 0.0
+
+    # 4. Marqueur physique et mécanique
+    config["marker_warp_prob"] = 0.0
+    config["marker_corner_lift_prob"] = 0.0
+    config["marker_paper_noise_sigma"] = 0.0
+    config["marker_black_level_range"] = (0, 0)
+    config["marker_white_level_range"] = (255, 255)
+    config["vibration_amplitude_px_range"] = (0.0, 0.0)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ardu-Citron Dataset Generator (Caméra + ROI CNN)")
     parser.add_argument("--skip-verification", action="store_true",
                          help="Ne pas générer le dataset de vérification (trajectoires)")
     parser.add_argument("--skip-cnn", action="store_true",
                          help="Ne pas générer le dataset CNN (train/val, exemples indépendants)")
+    parser.add_argument("--clean", action="store_true",
+                         help="Désactive le réalisme (bruit, flou, distorsion) pour créer un dataset parfait.")
     args = parser.parse_args()
+
+    # Application du mode clean AVANT de lancer les workers
+    if args.clean:
+        apply_clean_mode(CONFIG)
+        # Redirection vers de nouveaux dossiers pour ne pas écraser ton dataset réaliste
+        CONFIG["cnn_output_dir"] = "Dataset_CNN_Clean"
+        CONFIG["verification_output_dir"] = "Dataset_Verification_Clean"
 
     print("=== [Ardu-Citron Dataset Generator - Multi-processus 4 Coeurs] ===")
     print("    2 datasets TOTALEMENT SÉPARÉS : vérification (trajectoires) et CNN (train/val, sans trajectoire)\n")

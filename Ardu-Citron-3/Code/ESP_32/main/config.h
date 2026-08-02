@@ -64,7 +64,7 @@ constexpr uint32_t PERIOD_BUZZER_US   = 1000000UL / FREQ_BUZZER_HZ;
 // ------------------------------------------------------------
 // DEMARRAGE / CALIBRATION
 // ------------------------------------------------------------
-constexpr uint32_t CALIBRATION_DURATION_MS    = 5000; // 5 s, planeur immobile
+constexpr uint32_t CALIBRATION_DURATION_MS    = 10000; // 5 s, planeur immobile
 constexpr uint32_t CALIBRATION_BEEP_PERIOD_MS = 500;  // Bip court toutes les 500 ms
 constexpr uint32_t CALIBRATION_BEEP_DURATION_MS = 60;
 constexpr uint16_t CALIBRATION_SAMPLE_COUNT   = 400;  // Echantillons moyennes pour les offsets

@@ -26,6 +26,3 @@ Servo 3 : GPIO14
 Buzzer
 -------
 Buzzer passif : GPIO13
-
-
-

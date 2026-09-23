@@ -1,0 +1,74 @@
+{
+  "markers": [
+    {
+      "marker_id": 20,
+      "corners_px": [
+        [
+          87.7005844116211,
+          347.6156921386719
+        ],
+        [
+          88.5343017578125,
+          327.81927490234375
+        ],
+        [
+          114.02906799316406,
+          325.93603515625
+        ],
+        [
+          112.85538482666016,
+          345.2637023925781
+        ]
+      ],
+      "corners_px_pre_warp": [
+        [
+          80.37291717529297,
+          348.3052978515625
+        ],
+        [
+          81.62251281738281,
+          328.71588134765625
+        ],
+        [
+          106.69747924804688,
+          326.9702453613281
+        ],
+        [
+          105.09944915771484,
+          346.1302185058594
+        ]
+      ],
+      "visible_fraction": 1.0,
+      "visible_px": [
+        26.3,
+        21.3
+      ],
+      "altitude_m": 5.96,
+      "roll_deg": 33.0,
+      "pitch_deg": 19.4,
+      "yaw_deg": 283.2,
+      "marker_side_px": 22
+    }
+  ],
+  "scene": {
+    "ground_texture": "tile",
+    "sun_elevation_deg": 62.0,
+    "sun_azimuth_deg": 106.2,
+    "focus_distance_m": 7.0,
+    "altitude_ref_m": 5.96,
+    "autofocus_hunting": false,
+    "motion_blur_len_px": 3.64,
+    "defocus_blur_ksize": 6.3,
+    "vignette_strength": 0.401,
+    "ae_gain": 1.191,
+    "vibration_px": 1.13,
+    "vibration_shift_xy_px": [
+      -0.9,
+      -1.44
+    ],
+    "rolling_shutter_shift_max_px": -13.46,
+    "wb_temp": -0.401,
+    "lens_distortion_k1": -0.063,
+    "n_markers": 1
+  }
+}

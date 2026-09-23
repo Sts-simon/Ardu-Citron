@@ -1,0 +1,74 @@
+{
+  "markers": [
+    {
+      "marker_id": 12,
+      "corners_px": [
+        [
+          358.3626403808594,
+          251.33822631835938
+        ],
+        [
+          356.7025146484375,
+          272.6717834472656
+        ],
+        [
+          335.8095703125,
+          271.0177917480469
+        ],
+        [
+          337.41839599609375,
+          249.91244506835938
+        ]
+      ],
+      "corners_px_pre_warp": [
+        [
+          363.9888000488281,
+          253.26625061035156
+        ],
+        [
+          362.8211975097656,
+          274.5869140625
+        ],
+        [
+          341.8869934082031,
+          272.93756103515625
+        ],
+        [
+          343.0013122558594,
+          251.8450927734375
+        ]
+      ],
+      "visible_fraction": 1.0,
+      "visible_px": [
+        22.1,
+        22.7
+      ],
+      "altitude_m": 6.74,
+      "roll_deg": 14.6,
+      "pitch_deg": -2.6,
+      "yaw_deg": 92.9,
+      "marker_side_px": 21
+    }
+  ],
+  "scene": {
+    "ground_texture": "gym_floor",
+    "sun_elevation_deg": 56.6,
+    "sun_azimuth_deg": 147.5,
+    "focus_distance_m": 7.0,
+    "altitude_ref_m": 6.74,
+    "autofocus_hunting": false,
+    "motion_blur_len_px": 2.74,
+    "defocus_blur_ksize": 3.8,
+    "vignette_strength": 0.323,
+    "ae_gain": 1.186,
+    "vibration_px": 0.807,
+    "vibration_shift_xy_px": [
+      0.29,
+      -1.93
+    ],
+    "rolling_shutter_shift_max_px": 11.24,
+    "wb_temp": -0.708,
+    "lens_distortion_k1": -0.0748,
+    "n_markers": 1
+  }
+}

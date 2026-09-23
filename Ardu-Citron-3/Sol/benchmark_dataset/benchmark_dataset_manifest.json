@@ -1,0 +1,10 @@
+{
+  "generator": "/mnt/1to/ODB/Ardu-Citron-3/Sol/generate_realistic_dataset.py",
+  "generator_sha256": "46cedacd5cfd93aba7e2b7b5966939242a55c219b4864fd2e1154d106e47e14d",
+  "scenes": 200,
+  "markers_per_scene": "1-3",
+  "marker_ids": "0-40",
+  "difficulty": "both",
+  "marker_size_m": 0.297,
+  "seed": 0
+}

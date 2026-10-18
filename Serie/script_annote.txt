@@ -1,0 +1,13 @@
+Environ 125 mots, débit ~2,2 mots/s. Les mots en **gras** déclenchent une apparition à l'écran ; l'instant entre parenthèses est la clé du dictionnaire `C` dans `guidage_ep01_court.py` (à corriger après l'enregistrement).
+**[0.0]** The bomb knows **nothing.** *(1.0)*
+**[2.2]** **No computer.** *(2.4)* **No sensor.** *(3.3)* **No steering.** *(4.2)* Only **physics.** *(5.3)*
+**[6.0]** **Gravity** pulls it down, *(6.2)* its **speed** carries it forward: *(8.0)* a ballistic **curve.** *(9.2 / 9.6)*
+**[11.7]** **Drag** slows it down. *(11.8)* **Wind** pushes it off course. *(13.3)* The **error** is set at release. *(14.9 cote Δ / 15.3 « ERROR »)*
+**[17.4]** So the intelligence must be in the **aircraft.** *(19.0)*
+**[19.6]** A **computer** *(19.8)* measures **speed,** *(21.0)* **altitude** *(21.9)* and **wind,** *(22.8)* and **solves the trajectory.** *(23.8)*
+**[25.6]** The **CCIP** *(25.8)* shows where the bomb would **land** *(28.2)* if released **now.** *(29.0)*
+**[30.2]** The pilot **moves** the marker *(30.4)* onto the **target,** *(32.4)* and **releases.** *(34.0)*
+**[36.1]** The **CCRP** *(36.3)* reverses the problem: the pilot flies to the **target,** *(39.6)* and the computer **calculates** *(40.8)* the **release point.** *(41.8 ; largage à 42.2)*
+**[44.0]** Unguided **rockets** *(44.1)* work the same way: **no steering,** *(46.2)* only a **predicted impact point.** *(47.4 ; tir à 48.4)*
+**[50.4]** But after **release,** *(51.1)* **nothing can be corrected.** *(52.5)*
+**[54.2]** The **impact** *(54.4)* is a **function** *(55.5)* of the **release.** *(56.1)*

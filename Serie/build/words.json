@@ -1,0 +1,757 @@
+[
+ {
+  "word": "The",
+  "start": 0.131,
+  "end": 0.231
+ },
+ {
+  "word": "bomb",
+  "start": 0.291,
+  "end": 0.592
+ },
+ {
+  "word": "can",
+  "start": 0.652,
+  "end": 0.832
+ },
+ {
+  "word": "see",
+  "start": 0.992,
+  "end": 1.252
+ },
+ {
+  "word": "the",
+  "start": 1.292,
+  "end": 1.392
+ },
+ {
+  "word": "target.",
+  "start": 1.432,
+  "end": 1.833
+ },
+ {
+  "word": "Put",
+  "start": 2.493,
+  "end": 2.654
+ },
+ {
+  "word": "a",
+  "start": 2.694,
+  "end": 2.714
+ },
+ {
+  "word": "TV",
+  "start": 2.774,
+  "end": 3.154
+ },
+ {
+  "word": "camera",
+  "start": 3.194,
+  "end": 3.554
+ },
+ {
+  "word": "in",
+  "start": 3.615,
+  "end": 3.675
+ },
+ {
+  "word": "the",
+  "start": 3.715,
+  "end": 3.795
+ },
+ {
+  "word": "nose",
+  "start": 3.855,
+  "end": 4.195
+ },
+ {
+  "word": "and",
+  "start": 4.515,
+  "end": 4.595
+ },
+ {
+  "word": "the",
+  "start": 4.636,
+  "end": 4.716
+ },
+ {
+  "word": "bomb",
+  "start": 4.756,
+  "end": 5.056
+ },
+ {
+  "word": "is",
+  "start": 5.116,
+  "end": 5.216
+ },
+ {
+  "word": "no",
+  "start": 5.336,
+  "end": 5.456
+ },
+ {
+  "word": "longer",
+  "start": 5.516,
+  "end": 5.797
+ },
+ {
+  "word": "blind.",
+  "start": 5.857,
+  "end": 6.277
+ },
+ {
+  "word": "The",
+  "start": 7.398,
+  "end": 7.498
+ },
+ {
+  "word": "camera",
+  "start": 7.538,
+  "end": 7.979
+ },
+ {
+  "word": "sends",
+  "start": 8.019,
+  "end": 8.259
+ },
+ {
+  "word": "a",
+  "start": 8.319,
+  "end": 8.359
+ },
+ {
+  "word": "picture.",
+  "start": 8.399,
+  "end": 8.78
+ },
+ {
+  "word": "A",
+  "start": 9.38,
+  "end": 9.42
+ },
+ {
+  "word": "tracker",
+  "start": 9.48,
+  "end": 9.861
+ },
+ {
+  "word": "finds",
+  "start": 9.981,
+  "end": 10.261
+ },
+ {
+  "word": "the",
+  "start": 10.341,
+  "end": 10.421
+ },
+ {
+  "word": "target",
+  "start": 10.461,
+  "end": 10.802
+ },
+ {
+  "word": "in",
+  "start": 10.942,
+  "end": 11.042
+ },
+ {
+  "word": "it",
+  "start": 11.082,
+  "end": 11.162
+ },
+ {
+  "word": "and",
+  "start": 11.462,
+  "end": 11.542
+ },
+ {
+  "word": "measures",
+  "start": 11.622,
+  "end": 11.943
+ },
+ {
+  "word": "how",
+  "start": 12.003,
+  "end": 12.143
+ },
+ {
+  "word": "far",
+  "start": 12.263,
+  "end": 12.503
+ },
+ {
+  "word": "it",
+  "start": 12.543,
+  "end": 12.623
+ },
+ {
+  "word": "is",
+  "start": 12.703,
+  "end": 12.784
+ },
+ {
+  "word": "from",
+  "start": 12.844,
+  "end": 13.004
+ },
+ {
+  "word": "the",
+  "start": 13.044,
+  "end": 13.124
+ },
+ {
+  "word": "center.",
+  "start": 13.164,
+  "end": 13.504
+ },
+ {
+  "word": "That",
+  "start": 14.085,
+  "end": 14.285
+ },
+ {
+  "word": "distance",
+  "start": 14.345,
+  "end": 14.806
+ },
+ {
+  "word": "is",
+  "start": 15.046,
+  "end": 15.126
+ },
+ {
+  "word": "the",
+  "start": 15.166,
+  "end": 15.286
+ },
+ {
+  "word": "error.",
+  "start": 15.426,
+  "end": 15.686
+ },
+ {
+  "word": "Guidance",
+  "start": 16.327,
+  "end": 16.747
+ },
+ {
+  "word": "turns",
+  "start": 16.827,
+  "end": 17.068
+ },
+ {
+  "word": "it",
+  "start": 17.128,
+  "end": 17.168
+ },
+ {
+  "word": "into",
+  "start": 17.228,
+  "end": 17.408
+ },
+ {
+  "word": "commands.",
+  "start": 17.448,
+  "end": 17.929
+ },
+ {
+  "word": "The",
+  "start": 18.349,
+  "end": 18.429
+ },
+ {
+  "word": "fins",
+  "start": 18.489,
+  "end": 18.789
+ },
+ {
+  "word": "move",
+  "start": 18.849,
+  "end": 19.15
+ },
+ {
+  "word": "and",
+  "start": 19.45,
+  "end": 19.53
+ },
+ {
+  "word": "the",
+  "start": 19.55,
+  "end": 19.63
+ },
+ {
+  "word": "target",
+  "start": 19.69,
+  "end": 20.071
+ },
+ {
+  "word": "comes",
+  "start": 20.131,
+  "end": 20.331
+ },
+ {
+  "word": "back",
+  "start": 20.411,
+  "end": 20.591
+ },
+ {
+  "word": "to",
+  "start": 20.631,
+  "end": 20.731
+ },
+ {
+  "word": "the",
+  "start": 20.751,
+  "end": 20.831
+ },
+ {
+  "word": "center.",
+  "start": 20.891,
+  "end": 21.172
+ },
+ {
+  "word": "Keep",
+  "start": 22.613,
+  "end": 22.813
+ },
+ {
+  "word": "the",
+  "start": 22.853,
+  "end": 22.953
+ },
+ {
+  "word": "error",
+  "start": 23.053,
+  "end": 23.294
+ },
+ {
+  "word": "at",
+  "start": 23.414,
+  "end": 23.474
+ },
+ {
+  "word": "zero",
+  "start": 23.594,
+  "end": 24.034
+ },
+ {
+  "word": "and",
+  "start": 24.334,
+  "end": 24.434
+ },
+ {
+  "word": "the",
+  "start": 24.454,
+  "end": 24.535
+ },
+ {
+  "word": "bomb",
+  "start": 24.595,
+  "end": 24.875
+ },
+ {
+  "word": "flies",
+  "start": 24.935,
+  "end": 25.215
+ },
+ {
+  "word": "straight",
+  "start": 25.335,
+  "end": 25.715
+ },
+ {
+  "word": "at",
+  "start": 25.735,
+  "end": 25.796
+ },
+ {
+  "word": "what",
+  "start": 25.856,
+  "end": 25.996
+ },
+ {
+  "word": "it",
+  "start": 26.036,
+  "end": 26.096
+ },
+ {
+  "word": "sees.",
+  "start": 26.156,
+  "end": 26.476
+ },
+ {
+  "word": "Weapons",
+  "start": 27.277,
+  "end": 27.597
+ },
+ {
+  "word": "like",
+  "start": 27.657,
+  "end": 27.817
+ },
+ {
+  "word": "the",
+  "start": 27.857,
+  "end": 27.937
+ },
+ {
+  "word": "Walleye",
+  "start": 27.997,
+  "end": 28.498
+ },
+ {
+  "word": "lock",
+  "start": 28.578,
+  "end": 28.838
+ },
+ {
+  "word": "onto",
+  "start": 28.918,
+  "end": 29.118
+ },
+ {
+  "word": "the",
+  "start": 29.158,
+  "end": 29.238
+ },
+ {
+  "word": "contrast",
+  "start": 29.318,
+  "end": 29.939
+ },
+ {
+  "word": "of",
+  "start": 29.959,
+  "end": 30.019
+ },
+ {
+  "word": "the",
+  "start": 30.059,
+  "end": 30.159
+ },
+ {
+  "word": "target",
+  "start": 30.199,
+  "end": 30.559
+ },
+ {
+  "word": "before",
+  "start": 30.599,
+  "end": 31.0
+ },
+ {
+  "word": "launch.",
+  "start": 31.04,
+  "end": 31.38
+ },
+ {
+  "word": "After",
+  "start": 32.04,
+  "end": 32.261
+ },
+ {
+  "word": "release,",
+  "start": 32.301,
+  "end": 32.661
+ },
+ {
+  "word": "no",
+  "start": 33.121,
+  "end": 33.281
+ },
+ {
+  "word": "human",
+  "start": 33.362,
+  "end": 33.702
+ },
+ {
+  "word": "is",
+  "start": 33.742,
+  "end": 33.822
+ },
+ {
+  "word": "needed.",
+  "start": 33.882,
+  "end": 34.182
+ },
+ {
+  "word": "Fire",
+  "start": 34.683,
+  "end": 35.023
+ },
+ {
+  "word": "and",
+  "start": 35.243,
+  "end": 35.323
+ },
+ {
+  "word": "forget.",
+  "start": 35.383,
+  "end": 35.783
+ },
+ {
+  "word": "Weapons",
+  "start": 37.345,
+  "end": 37.665
+ },
+ {
+  "word": "like",
+  "start": 37.725,
+  "end": 37.885
+ },
+ {
+  "word": "the",
+  "start": 37.925,
+  "end": 38.005
+ },
+ {
+  "word": "GBU-15",
+  "start": 38.065,
+  "end": 39.286
+ },
+ {
+  "word": "send",
+  "start": 39.386,
+  "end": 39.586
+ },
+ {
+  "word": "the",
+  "start": 39.606,
+  "end": 39.686
+ },
+ {
+  "word": "picture",
+  "start": 39.727,
+  "end": 40.027
+ },
+ {
+  "word": "back",
+  "start": 40.127,
+  "end": 40.407
+ },
+ {
+  "word": "by",
+  "start": 40.487,
+  "end": 40.647
+ },
+ {
+  "word": "data",
+  "start": 40.727,
+  "end": 40.988
+ },
+ {
+  "word": "link.",
+  "start": 41.048,
+  "end": 41.268
+ },
+ {
+  "word": "An",
+  "start": 41.788,
+  "end": 41.868
+ },
+ {
+  "word": "operator",
+  "start": 42.008,
+  "end": 42.469
+ },
+ {
+  "word": "watches",
+  "start": 42.549,
+  "end": 42.949
+ },
+ {
+  "word": "and",
+  "start": 43.089,
+  "end": 43.189
+ },
+ {
+  "word": "steers.",
+  "start": 43.269,
+  "end": 43.69
+ },
+ {
+  "word": "A",
+  "start": 44.21,
+  "end": 44.25
+ },
+ {
+  "word": "man",
+  "start": 44.31,
+  "end": 44.59
+ },
+ {
+  "word": "in",
+  "start": 44.71,
+  "end": 44.791
+ },
+ {
+  "word": "the",
+  "start": 44.811,
+  "end": 44.891
+ },
+ {
+  "word": "loop.",
+  "start": 44.951,
+  "end": 45.191
+ },
+ {
+  "word": "But",
+  "start": 46.775,
+  "end": 46.895
+ },
+ {
+  "word": "a",
+  "start": 46.915,
+  "end": 46.935
+ },
+ {
+  "word": "camera",
+  "start": 46.996,
+  "end": 47.437
+ },
+ {
+  "word": "needs",
+  "start": 47.477,
+  "end": 47.717
+ },
+ {
+  "word": "light",
+  "start": 47.838,
+  "end": 48.138
+ },
+ {
+  "word": "and",
+  "start": 48.259,
+  "end": 48.359
+ },
+ {
+  "word": "contrast.",
+  "start": 48.439,
+  "end": 49.101
+ },
+ {
+  "word": "Night,",
+  "start": 49.642,
+  "end": 49.903
+ },
+ {
+  "word": "smoke,",
+  "start": 50.324,
+  "end": 50.665
+ },
+ {
+  "word": "fog,",
+  "start": 51.066,
+  "end": 51.447
+ },
+ {
+  "word": "the",
+  "start": 51.928,
+  "end": 52.028
+ },
+ {
+  "word": "picture",
+  "start": 52.068,
+  "end": 52.369
+ },
+ {
+  "word": "is",
+  "start": 52.429,
+  "end": 52.51
+ },
+ {
+  "word": "lost",
+  "start": 52.61,
+  "end": 53.011
+ },
+ {
+  "word": "and",
+  "start": 53.271,
+  "end": 53.372
+ },
+ {
+  "word": "so",
+  "start": 53.472,
+  "end": 53.632
+ },
+ {
+  "word": "is",
+  "start": 53.693,
+  "end": 53.793
+ },
+ {
+  "word": "the",
+  "start": 53.833,
+  "end": 53.913
+ },
+ {
+  "word": "target.",
+  "start": 53.973,
+  "end": 54.354
+ },
+ {
+  "word": "The",
+  "start": 55.497,
+  "end": 55.597
+ },
+ {
+  "word": "guidance",
+  "start": 55.678,
+  "end": 56.139
+ },
+ {
+  "word": "is",
+  "start": 56.319,
+  "end": 56.399
+ },
+ {
+  "word": "a",
+  "start": 56.46,
+  "end": 56.5
+ },
+ {
+  "word": "function",
+  "start": 56.62,
+  "end": 57.041
+ },
+ {
+  "word": "of",
+  "start": 57.121,
+  "end": 57.181
+ },
+ {
+  "word": "the",
+  "start": 57.221,
+  "end": 57.322
+ },
+ {
+  "word": "image.",
+  "start": 57.462,
+  "end": 57.743
+ },
+ {
+  "word": "Next,",
+  "start": 59.146,
+  "end": 59.447
+ },
+ {
+  "word": "guidance",
+  "start": 60.029,
+  "end": 60.45
+ },
+ {
+  "word": "that",
+  "start": 60.53,
+  "end": 60.69
+ },
+ {
+  "word": "sees",
+  "start": 60.77,
+  "end": 61.071
+ },
+ {
+  "word": "heat.",
+  "start": 61.191,
+  "end": 61.472
+ }
+]

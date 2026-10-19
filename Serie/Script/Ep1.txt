@@ -1,0 +1,12 @@
+The bomb knows nothing.
+No computer.No sensor.No steering. Only physics.
+Gravity pulls it down, its speed carries it forward: a ballistic curve.
+Drag slows it down. Wind pushes it off course. The error is set at release.
+So the intelligence must be in the aircraft.
+A computer measures speed,altitude and wind, and solves the trajectory.
+The CCIP shows where the bomb would land if released now.
+The pilot moves the marker onto the target, and releases.
+The CCRP reverses the problem: the pilot flies to the target, and the computer calculates the release point.
+Unguided rockets work the same way: no steering,only a predicted impact point.
+But after release, nothing can be corrected.
+The impact is a function of the release.

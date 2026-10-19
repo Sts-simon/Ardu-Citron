@@ -1,0 +1,11 @@
+The bomb can see heat.
+Put an infrared sensor in the nose, and the bomb no longer needs daylight. <break time="0.8s"/>
+It doesn't look for visible light, it looks for thermal contrast.
+An engine, a power plant, a vehicle in the dark: all emit heat.
+The tracker locks onto the thermal signature, guidance moves the fins, and the bomb follows the target. <break time="0.8s"/>
+Night no longer offers protection.
+Weapons like the AGM-65 Maverick IR can strike in total darkness. <break time="0.8s"/>
+Fire and forget, even at night. <break time="0.8s"/>
+But thermal imagery still has limits. Heavy rain, dense clouds, or artificial smoke can block the heat signature. <break time="0.8s"/>
+The guidance is a function of the contrast. <break time="0.8s"/>
+Next: guidance that doesn't rely on sight. GPS and satellite navigation.

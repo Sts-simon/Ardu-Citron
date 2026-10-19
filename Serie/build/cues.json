@@ -1,0 +1,278 @@
+{
+ "C": {
+  "hook2": 1.38,
+  "camera": 2.72,
+  "blind": 5.81,
+  "picture": 8.35,
+  "tracker": 9.43,
+  "far": 12.21,
+  "center": 13.11,
+  "dist": 14.29,
+  "error": 15.38,
+  "guid": 16.28,
+  "fins": 18.44,
+  "back": 20.36,
+  "zero": 23.54,
+  "straight": 25.29,
+  "walleye": 27.95,
+  "contrast": 29.27,
+  "nohuman": 33.07,
+  "fnf": 35.78,
+  "gbu": 38.02,
+  "datalink": 40.68,
+  "operator": 41.96,
+  "mil": 44.26,
+  "light": 47.79,
+  "night": 49.59,
+  "smoke": 50.27,
+  "fog": 51.02,
+  "lost": 52.56,
+  "fn1": 55.63,
+  "fn2": 56.57,
+  "fn3": 57.41,
+  "nxt": 59.1,
+  "loop": 61.97,
+  "hook_out": 2.28,
+  "end": 62.97
+ },
+ "report": {
+  "hook2": {
+   "word": "target",
+   "how": "exact",
+   "raw": 1.38,
+   "final": 1.38,
+   "pushed": 0.0
+  },
+  "hook_out": {
+   "word": "(relatif)",
+   "how": "relative",
+   "raw": 2.28,
+   "final": 2.28,
+   "pushed": 0.0
+  },
+  "camera": {
+   "word": "tv",
+   "how": "exact",
+   "raw": 2.72,
+   "final": 2.72,
+   "pushed": 0.0
+  },
+  "blind": {
+   "word": "blind",
+   "how": "exact",
+   "raw": 5.81,
+   "final": 5.81,
+   "pushed": 0.0
+  },
+  "picture": {
+   "word": "picture",
+   "how": "exact",
+   "raw": 8.35,
+   "final": 8.35,
+   "pushed": 0.0
+  },
+  "tracker": {
+   "word": "tracker",
+   "how": "exact",
+   "raw": 9.43,
+   "final": 9.43,
+   "pushed": 0.0
+  },
+  "far": {
+   "word": "far",
+   "how": "exact",
+   "raw": 12.21,
+   "final": 12.21,
+   "pushed": 0.0
+  },
+  "center": {
+   "word": "center",
+   "how": "exact",
+   "raw": 13.11,
+   "final": 13.11,
+   "pushed": 0.0
+  },
+  "dist": {
+   "word": "distance",
+   "how": "exact",
+   "raw": 14.29,
+   "final": 14.29,
+   "pushed": 0.0
+  },
+  "error": {
+   "word": "error",
+   "how": "exact",
+   "raw": 15.38,
+   "final": 15.38,
+   "pushed": 0.0
+  },
+  "guid": {
+   "word": "guidance",
+   "how": "exact",
+   "raw": 16.28,
+   "final": 16.28,
+   "pushed": 0.0
+  },
+  "fins": {
+   "word": "fins",
+   "how": "exact",
+   "raw": 18.44,
+   "final": 18.44,
+   "pushed": 0.0
+  },
+  "back": {
+   "word": "back",
+   "how": "exact",
+   "raw": 20.36,
+   "final": 20.36,
+   "pushed": 0.0
+  },
+  "zero": {
+   "word": "zero",
+   "how": "exact",
+   "raw": 23.54,
+   "final": 23.54,
+   "pushed": 0.0
+  },
+  "straight": {
+   "word": "straight",
+   "how": "exact",
+   "raw": 25.29,
+   "final": 25.29,
+   "pushed": 0.0
+  },
+  "walleye": {
+   "word": "walleye",
+   "how": "exact",
+   "raw": 27.95,
+   "final": 27.95,
+   "pushed": 0.0
+  },
+  "contrast": {
+   "word": "contrast",
+   "how": "exact",
+   "raw": 29.27,
+   "final": 29.27,
+   "pushed": 0.0
+  },
+  "nohuman": {
+   "word": "no",
+   "how": "exact",
+   "raw": 33.07,
+   "final": 33.07,
+   "pushed": 0.0
+  },
+  "fnf": {
+   "word": "forget",
+   "how": "exact+end",
+   "raw": 35.78,
+   "final": 35.78,
+   "pushed": 0.0
+  },
+  "gbu": {
+   "word": "gbu",
+   "how": "fuzzy",
+   "raw": 38.02,
+   "final": 38.02,
+   "pushed": 0.0
+  },
+  "datalink": {
+   "word": "data",
+   "how": "exact",
+   "raw": 40.68,
+   "final": 40.68,
+   "pushed": 0.0
+  },
+  "operator": {
+   "word": "operator",
+   "how": "exact",
+   "raw": 41.96,
+   "final": 41.96,
+   "pushed": 0.0
+  },
+  "mil": {
+   "word": "man",
+   "how": "exact",
+   "raw": 44.26,
+   "final": 44.26,
+   "pushed": 0.0
+  },
+  "light": {
+   "word": "light",
+   "how": "exact",
+   "raw": 47.79,
+   "final": 47.79,
+   "pushed": 0.0
+  },
+  "night": {
+   "word": "night",
+   "how": "exact",
+   "raw": 49.59,
+   "final": 49.59,
+   "pushed": 0.0
+  },
+  "smoke": {
+   "word": "smoke",
+   "how": "exact",
+   "raw": 50.27,
+   "final": 50.27,
+   "pushed": 0.0
+  },
+  "fog": {
+   "word": "fog",
+   "how": "exact",
+   "raw": 51.02,
+   "final": 51.02,
+   "pushed": 0.0
+  },
+  "lost": {
+   "word": "lost",
+   "how": "exact",
+   "raw": 52.56,
+   "final": 52.56,
+   "pushed": 0.0
+  },
+  "fn1": {
+   "word": "guidance",
+   "how": "exact",
+   "raw": 55.63,
+   "final": 55.63,
+   "pushed": 0.0
+  },
+  "fn2": {
+   "word": "function",
+   "how": "exact",
+   "raw": 56.57,
+   "final": 56.57,
+   "pushed": 0.0
+  },
+  "fn3": {
+   "word": "image",
+   "how": "exact",
+   "raw": 57.41,
+   "final": 57.41,
+   "pushed": 0.0
+  },
+  "nxt": {
+   "word": "next",
+   "how": "exact",
+   "raw": 59.1,
+   "final": 59.1,
+   "pushed": 0.0
+  },
+  "loop": {
+   "word": "heat",
+   "how": "exact+end",
+   "raw": 61.97,
+   "final": 61.97,
+   "pushed": 0.0
+  },
+  "end": {
+   "word": "(relatif)",
+   "how": "relative",
+   "raw": 62.97,
+   "final": 62.97,
+   "pushed": 0.0
+  }
+ }
+}

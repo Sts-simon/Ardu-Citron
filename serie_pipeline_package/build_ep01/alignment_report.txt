@@ -1,0 +1,72 @@
+Duree audio: 53.891 s
+Nombre de mots retournes par l'alignement: 125
+Fin prevue de la scene Manim: 57.040 s
+WER indicatif Whisper vs script: 0.0%
+Transcription de controle Whisper: The bomb knows nothing. No computer, no sensor, no steering. Only physics. Gravity pulls it down. Its speed carries it forward. A ballistic curve. Drag slows it down. Wind pushes it off course. The error is set at release. so the intelligence must be in the aircraft. A computer measures speed, altitude, and wind and solves the trajectory. The CCIP shows where the bomb would land if released now. The pilot moves the marker onto the target and releases. The CCRP reverses the problem. The pilot flies to the target and the computer calculates the release point. Unguided rockets work the same way. No steering, only a predicted impact point. But after release, nothing can be corrected. The impact is a function of the release.
+
+TIMINGS C:
+  hook2               1.120 s
+  hook_out            1.901 s
+  no_comp             2.101 s
+  no_sens             3.181 s
+  no_steer            4.302 s
+  physics             6.042 s
+  release             7.163 s
+  g_arrow             7.343 s
+  v_arrow             9.003 s
+  curve              11.564 s
+  ballistic          12.194 s
+  land               13.044 s
+  air                12.225 s
+  drag               12.525 s
+  wind               14.325 s
+  gap                17.567 s
+  error              18.097 s
+  grows              18.947 s
+  to_air             18.727 s
+  aircraft           20.628 s
+  computer           21.808 s
+  in_speed           22.788 s
+  in_alt             23.549 s
+  in_wind            24.369 s
+  solves             25.189 s
+  back               26.620 s
+  ccip               27.070 s
+  impact_pt          28.110 s
+  shows              29.331 s
+  now                30.411 s
+  move               31.832 s
+  target             33.132 s
+  put                33.743 s
+  rel_ccip           33.993 s
+  ccrp               35.453 s
+  ccrp_flight        37.014 s
+  fly                38.694 s
+  ccrp_target        39.355 s
+  ccrp_mark          40.775 s
+  ccrp_label         41.515 s
+  ccrp_rel           42.116 s
+  rocket             43.316 s
+  no_steer2          45.157 s
+  pred_rocket        46.537 s
+  fire               48.228 s
+  prediction         48.358 s
+  release_word       48.858 s
+  go                 49.698 s
+  no_corr            50.379 s
+  eq_clear           51.259 s
+  eq1                51.559 s
+  eq2                51.919 s
+  eq3                52.419 s
+  eq4                53.180 s
+  eq5                53.540 s
+  eq_box             53.890 s
+  nxt                54.540 s
+  loop               56.040 s
+
+VALIDATION:
+  Toutes les ancres ont ete trouvees.
+
+AVERTISSEMENTS D'ORDRE (les appels Manim peuvent etre en retard):
+  Ordre des cues inverse: land=13.044s puis air=12.225s. Verifie les ancres/offsets.
+  Ordre des cues inverse: grows=18.947s puis to_air=18.727s. Verifie les ancres/offsets.

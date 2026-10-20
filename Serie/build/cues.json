@@ -1,277 +1,349 @@
 {
  "C": {
-  "hook2": 1.38,
-  "camera": 2.72,
-  "blind": 5.81,
-  "picture": 8.35,
-  "tracker": 9.43,
-  "far": 12.21,
-  "center": 13.11,
-  "dist": 14.29,
-  "error": 15.38,
-  "guid": 16.28,
-  "fins": 18.44,
-  "back": 20.36,
-  "zero": 23.54,
-  "straight": 25.29,
-  "walleye": 27.95,
-  "contrast": 29.27,
-  "nohuman": 33.07,
-  "fnf": 35.78,
-  "gbu": 38.02,
-  "datalink": 40.68,
-  "operator": 41.96,
-  "mil": 44.26,
-  "light": 47.79,
-  "night": 49.59,
-  "smoke": 50.27,
-  "fog": 51.02,
-  "lost": 52.56,
-  "fn1": 55.63,
-  "fn2": 56.57,
-  "fn3": 57.41,
-  "nxt": 59.1,
-  "loop": 61.97,
-  "hook_out": 2.28,
-  "end": 62.97
+  "hook2": 1.26,
+  "ir": 2.64,
+  "sensor": 3.16,
+  "day": 5.88,
+  "vis": 7.78,
+  "thermal": 9.48,
+  "contrast": 9.94,
+  "engine": 11.47,
+  "plant": 12.21,
+  "vehicle": 13.27,
+  "dark": 13.91,
+  "emit": 15.07,
+  "trk": 16.51,
+  "sig": 17.75,
+  "guid": 19.07,
+  "fins": 19.99,
+  "follows": 21.37,
+  "night": 23.01,
+  "prot": 24.49,
+  "mav": 26.47,
+  "irm": 28.3,
+  "total": 29.7,
+  "fire": 31.2,
+  "night2": 33.12,
+  "limits0": 34.3,
+  "limits": 35.89,
+  "rain": 37.13,
+  "cloud": 38.09,
+  "smoke": 39.57,
+  "block": 40.29,
+  "sig2": 41.01,
+  "fn1": 42.18,
+  "fn2": 43.04,
+  "fn3": 43.64,
+  "nxt": 45.2,
+  "guidt": 46.18,
+  "dnt": 46.94,
+  "sight": 47.92,
+  "gps": 48.84,
+  "sat": 49.91,
+  "loop": 51.52,
+  "hook_out": 2.16,
+  "end": 52.52
  },
  "report": {
   "hook2": {
-   "word": "target",
+   "word": "heat",
    "how": "exact",
-   "raw": 1.38,
-   "final": 1.38,
+   "raw": 1.26,
+   "final": 1.26,
    "pushed": 0.0
   },
   "hook_out": {
    "word": "(relatif)",
    "how": "relative",
-   "raw": 2.28,
-   "final": 2.28,
+   "raw": 2.16,
+   "final": 2.16,
    "pushed": 0.0
   },
-  "camera": {
-   "word": "tv",
+  "ir": {
+   "word": "infrared",
    "how": "exact",
-   "raw": 2.72,
-   "final": 2.72,
+   "raw": 2.64,
+   "final": 2.64,
    "pushed": 0.0
   },
-  "blind": {
-   "word": "blind",
+  "sensor": {
+   "word": "sensor",
    "how": "exact",
-   "raw": 5.81,
-   "final": 5.81,
+   "raw": 3.16,
+   "final": 3.16,
    "pushed": 0.0
   },
-  "picture": {
-   "word": "picture",
+  "day": {
+   "word": "daylight",
    "how": "exact",
-   "raw": 8.35,
-   "final": 8.35,
+   "raw": 5.88,
+   "final": 5.88,
    "pushed": 0.0
   },
-  "tracker": {
-   "word": "tracker",
+  "vis": {
+   "word": "visible",
    "how": "exact",
-   "raw": 9.43,
-   "final": 9.43,
+   "raw": 7.78,
+   "final": 7.78,
    "pushed": 0.0
   },
-  "far": {
-   "word": "far",
+  "thermal": {
+   "word": "thermal",
    "how": "exact",
-   "raw": 12.21,
-   "final": 12.21,
-   "pushed": 0.0
-  },
-  "center": {
-   "word": "center",
-   "how": "exact",
-   "raw": 13.11,
-   "final": 13.11,
-   "pushed": 0.0
-  },
-  "dist": {
-   "word": "distance",
-   "how": "exact",
-   "raw": 14.29,
-   "final": 14.29,
-   "pushed": 0.0
-  },
-  "error": {
-   "word": "error",
-   "how": "exact",
-   "raw": 15.38,
-   "final": 15.38,
-   "pushed": 0.0
-  },
-  "guid": {
-   "word": "guidance",
-   "how": "exact",
-   "raw": 16.28,
-   "final": 16.28,
-   "pushed": 0.0
-  },
-  "fins": {
-   "word": "fins",
-   "how": "exact",
-   "raw": 18.44,
-   "final": 18.44,
-   "pushed": 0.0
-  },
-  "back": {
-   "word": "back",
-   "how": "exact",
-   "raw": 20.36,
-   "final": 20.36,
-   "pushed": 0.0
-  },
-  "zero": {
-   "word": "zero",
-   "how": "exact",
-   "raw": 23.54,
-   "final": 23.54,
-   "pushed": 0.0
-  },
-  "straight": {
-   "word": "straight",
-   "how": "exact",
-   "raw": 25.29,
-   "final": 25.29,
-   "pushed": 0.0
-  },
-  "walleye": {
-   "word": "walleye",
-   "how": "exact",
-   "raw": 27.95,
-   "final": 27.95,
+   "raw": 9.48,
+   "final": 9.48,
    "pushed": 0.0
   },
   "contrast": {
    "word": "contrast",
    "how": "exact",
-   "raw": 29.27,
-   "final": 29.27,
+   "raw": 9.94,
+   "final": 9.94,
    "pushed": 0.0
   },
-  "nohuman": {
-   "word": "no",
+  "engine": {
+   "word": "engine",
    "how": "exact",
-   "raw": 33.07,
-   "final": 33.07,
+   "raw": 11.47,
+   "final": 11.47,
    "pushed": 0.0
   },
-  "fnf": {
-   "word": "forget",
-   "how": "exact+end",
-   "raw": 35.78,
-   "final": 35.78,
-   "pushed": 0.0
-  },
-  "gbu": {
-   "word": "gbu",
-   "how": "fuzzy",
-   "raw": 38.02,
-   "final": 38.02,
-   "pushed": 0.0
-  },
-  "datalink": {
-   "word": "data",
+  "plant": {
+   "word": "power",
    "how": "exact",
-   "raw": 40.68,
-   "final": 40.68,
+   "raw": 12.21,
+   "final": 12.21,
    "pushed": 0.0
   },
-  "operator": {
-   "word": "operator",
+  "vehicle": {
+   "word": "vehicle",
    "how": "exact",
-   "raw": 41.96,
-   "final": 41.96,
+   "raw": 13.27,
+   "final": 13.27,
    "pushed": 0.0
   },
-  "mil": {
-   "word": "man",
+  "dark": {
+   "word": "dark",
    "how": "exact",
-   "raw": 44.26,
-   "final": 44.26,
+   "raw": 13.91,
+   "final": 13.91,
    "pushed": 0.0
   },
-  "light": {
-   "word": "light",
+  "emit": {
+   "word": "emit",
    "how": "exact",
-   "raw": 47.79,
-   "final": 47.79,
+   "raw": 15.07,
+   "final": 15.07,
+   "pushed": 0.0
+  },
+  "trk": {
+   "word": "tracker",
+   "how": "exact",
+   "raw": 16.51,
+   "final": 16.51,
+   "pushed": 0.0
+  },
+  "sig": {
+   "word": "thermal",
+   "how": "exact",
+   "raw": 17.75,
+   "final": 17.75,
+   "pushed": 0.0
+  },
+  "guid": {
+   "word": "guidance",
+   "how": "exact",
+   "raw": 19.07,
+   "final": 19.07,
+   "pushed": 0.0
+  },
+  "fins": {
+   "word": "fins",
+   "how": "exact",
+   "raw": 19.99,
+   "final": 19.99,
+   "pushed": 0.0
+  },
+  "follows": {
+   "word": "follows",
+   "how": "exact",
+   "raw": 21.37,
+   "final": 21.37,
    "pushed": 0.0
   },
   "night": {
    "word": "night",
    "how": "exact",
-   "raw": 49.59,
-   "final": 49.59,
+   "raw": 23.01,
+   "final": 23.01,
+   "pushed": 0.0
+  },
+  "prot": {
+   "word": "protection",
+   "how": "exact",
+   "raw": 24.49,
+   "final": 24.49,
+   "pushed": 0.0
+  },
+  "mav": {
+   "word": "agm",
+   "how": "fuzzy",
+   "raw": 26.47,
+   "final": 26.47,
+   "pushed": 0.0
+  },
+  "irm": {
+   "word": "1r",
+   "how": "exact",
+   "raw": 28.3,
+   "final": 28.3,
+   "pushed": 0.0
+  },
+  "total": {
+   "word": "total",
+   "how": "exact",
+   "raw": 29.7,
+   "final": 29.7,
+   "pushed": 0.0
+  },
+  "fire": {
+   "word": "fire",
+   "how": "exact",
+   "raw": 31.2,
+   "final": 31.2,
+   "pushed": 0.0
+  },
+  "night2": {
+   "word": "night",
+   "how": "exact",
+   "raw": 33.12,
+   "final": 33.12,
+   "pushed": 0.0
+  },
+  "limits0": {
+   "word": "thermal",
+   "how": "exact",
+   "raw": 34.3,
+   "final": 34.3,
+   "pushed": 0.0
+  },
+  "limits": {
+   "word": "limits",
+   "how": "exact",
+   "raw": 35.89,
+   "final": 35.89,
+   "pushed": 0.0
+  },
+  "rain": {
+   "word": "rain",
+   "how": "exact",
+   "raw": 37.13,
+   "final": 37.13,
+   "pushed": 0.0
+  },
+  "cloud": {
+   "word": "clouds",
+   "how": "exact",
+   "raw": 38.09,
+   "final": 38.09,
    "pushed": 0.0
   },
   "smoke": {
    "word": "smoke",
    "how": "exact",
-   "raw": 50.27,
-   "final": 50.27,
+   "raw": 39.57,
+   "final": 39.57,
    "pushed": 0.0
   },
-  "fog": {
-   "word": "fog",
+  "block": {
+   "word": "block",
    "how": "exact",
-   "raw": 51.02,
-   "final": 51.02,
+   "raw": 40.29,
+   "final": 40.29,
    "pushed": 0.0
   },
-  "lost": {
-   "word": "lost",
+  "sig2": {
+   "word": "signature",
    "how": "exact",
-   "raw": 52.56,
-   "final": 52.56,
+   "raw": 41.01,
+   "final": 41.01,
    "pushed": 0.0
   },
   "fn1": {
    "word": "guidance",
    "how": "exact",
-   "raw": 55.63,
-   "final": 55.63,
+   "raw": 42.18,
+   "final": 42.18,
    "pushed": 0.0
   },
   "fn2": {
    "word": "function",
    "how": "exact",
-   "raw": 56.57,
-   "final": 56.57,
+   "raw": 43.04,
+   "final": 43.04,
    "pushed": 0.0
   },
   "fn3": {
-   "word": "image",
+   "word": "contrast",
    "how": "exact",
-   "raw": 57.41,
-   "final": 57.41,
+   "raw": 43.64,
+   "final": 43.64,
    "pushed": 0.0
   },
   "nxt": {
    "word": "next",
    "how": "exact",
-   "raw": 59.1,
-   "final": 59.1,
+   "raw": 45.2,
+   "final": 45.2,
+   "pushed": 0.0
+  },
+  "guidt": {
+   "word": "guidance",
+   "how": "exact",
+   "raw": 46.18,
+   "final": 46.18,
+   "pushed": 0.0
+  },
+  "dnt": {
+   "word": "doesn't",
+   "how": "exact",
+   "raw": 46.94,
+   "final": 46.94,
+   "pushed": 0.0
+  },
+  "sight": {
+   "word": "sight",
+   "how": "exact",
+   "raw": 47.92,
+   "final": 47.92,
+   "pushed": 0.0
+  },
+  "gps": {
+   "word": "gps",
+   "how": "exact",
+   "raw": 48.84,
+   "final": 48.84,
+   "pushed": 0.0
+  },
+  "sat": {
+   "word": "satellite",
+   "how": "exact",
+   "raw": 49.91,
+   "final": 49.91,
    "pushed": 0.0
   },
   "loop": {
-   "word": "heat",
+   "word": "navigation",
    "how": "exact+end",
-   "raw": 61.97,
-   "final": 61.97,
+   "raw": 51.52,
+   "final": 51.52,
    "pushed": 0.0
   },
   "end": {
    "word": "(relatif)",
    "how": "relative",
-   "raw": 62.97,
-   "final": 62.97,
+   "raw": 52.52,
+   "final": 52.52,
    "pushed": 0.0
   }
  }

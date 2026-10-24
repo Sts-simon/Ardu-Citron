@@ -65,10 +65,37 @@ ESP32. Les trames sont des mesures de vision, **pas des commandes directes de
 gouvernes**; aucune fusion externe n'est activée tant que les conventions de
 repère/calibration de la caméra ne sont pas définies.
 
+## UART Pi → ESP32 : consigne de guidage version 1
+
+Le même lien UART2 transporte les trames de pose (type 1) et, uniquement si
+l'autonomie est explicitement autorisée, des consignes de guidage (type 2).
+La trame type 2 fait 31 octets, les champs sont little-endian et les floats
+IEEE-754 binary32 : sync `A5 5A`, version `1`, type `2`, taille `24`, séquence
+`uint16`, timestamp Pi `uint32 ms`, roll `float` en degrés, pitch `float` en
+degrés, taux de lacet `float` en degrés/s, validité `uint16 ms`, qualité de
+navigation `float` dans `[0,1]`, puis CRC-16/CCITT-FALSE sur les octets de
+version au dernier champ, CRC little-endian. Le détail exécutable est dans
+`protocol.h` et `../Pi/vision_uart.py`; les tests Python compilent une fixture
+C++ et comparent les octets exacts.
+
+L'ESP32 ne compare pas le timestamp distant à `millis()` : la durée de validité
+commence à la réception locale. Les limites du codec sont roll ±25°, pitch ±8°,
+taux de lacet ±25°/s, validité 1–500 ms. Une qualité sous le seuil configuré
+(0,60 par défaut) est refusée. La sélection AUTO physique n'autorise rien à elle
+seule : `AUTO_MODE_ENABLED` reste `false`; une activation future doit exiger un
+sélecteur RC AUTO, une action d'armement RC, une commande RC fraîche pour
+reprise immédiate, un capteur sain et des consignes reçues régulièrement.
+Perte de navigation avec RC valide retombe en stabilisation RC; perte RC ou IMU
+entraîne FAILSAFE/défaut capteur. Le failsafe logiciel centre les servos selon
+le comportement actuel, ce qui n'est pas une stratégie de retour de gouvernes
+validée pour le modèle réel.
+
 ## Vision logicielle
 
 Les tests et benchs ArUco synthétiques restent dans `../Sol`. Aucun résultat PC
 ne garantit la latence ou le rappel sur Raspberry Pi. Le test e2e logiciel
 `test/native/test_protocol_e2e.py` génère un marqueur, le détecte puis exécute
 les tests natifs de transport et de modes; aucune sortie moteur réelle n'est
-utilisée.
+utilisée. Exécuter aussi `python3 ../Pi/test_vision_uart.py` pour le contrat
+croisé pose/guidage Python/C++ et `python3 test/native/run_native.py` pour les
+modes et limites sans matériel.

@@ -1,0 +1,47 @@
+{
+  "runtime_hz": 10,
+  "aruco_dictionary": "DICT_4X4_50",
+  "camera": {
+    "fx_px": 502.0,
+    "fy_px": 502.0,
+    "cx_px": 320.0,
+    "cy_px": 240.0,
+    "distortion": [-0.07, 0.01, 0.0, 0.0, 0.0],
+    "camera_to_body": [[0.0, -0.70710678, 0.70710678], [1.0, 0.0, 0.0], [0.0, 0.70710678, 0.70710678]],
+    "camera_position_body_m": [0.0, 0.0, 0.0],
+    "max_reprojection_error_px": 3.0
+  },
+  "zone": {
+    "north_min_m": -100.0,
+    "north_max_m": 100.0,
+    "east_min_m": -100.0,
+    "east_max_m": 100.0,
+    "margin_m": 30.0
+  },
+  "markers": [
+    {"id": 7, "north_m": -55.0, "east_m": -55.0, "altitude_m": 0.0, "size_m": 0.50, "yaw_deg": 0.0},
+    {"id": 12, "north_m": 55.0, "east_m": -55.0, "altitude_m": 0.0, "size_m": 0.50, "yaw_deg": 0.0},
+    {"id": 23, "north_m": 55.0, "east_m": 55.0, "altitude_m": 0.0, "size_m": 0.50, "yaw_deg": 0.0},
+    {"id": 31, "north_m": -55.0, "east_m": 55.0, "altitude_m": 0.0, "size_m": 0.50, "yaw_deg": 0.0}
+  ],
+  "navigation": {
+    "use_imu": true,
+    "use_vision": true,
+    "use_gps": false,
+    "fix_timeout_s": 2.0,
+    "process_noise_m_s": 0.8,
+    "vision_gain": 0.65,
+    "gps_max_accuracy_m": 8.0
+  },
+  "autopilot": {
+    "enabled": false,
+    "command_refresh_s": 0.10,
+    "max_bank_deg": 25.0,
+    "max_yaw_rate_dps": 25.0,
+    "lookahead_s": 2.5,
+    "waypoint_radius_m": 4.0,
+    "target_altitude_m": 6.0,
+    "altitude_gain_deg_per_m": 0.4
+  },
+  "uart": {"device": "/dev/serial0", "baud": 115200, "write_timeout_s": 0.02}
+}

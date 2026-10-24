@@ -39,6 +39,12 @@ constexpr uint8_t PIN_BUZZER = 13;
 constexpr uint8_t PIN_UART_PI_RX = 16;
 constexpr uint8_t PIN_UART_PI_TX = 17;
 
+// Voie RC 5 (GPIO36, sélecteur 3 positions): basse=manuel direct,
+// médiane=stabilisé RC, haute=demande AUTO. Valider le câblage réel avant vol.
+constexpr uint8_t PIN_RC_MODE = 36; // 3e état = médian, >1700us demande AUTO
+constexpr bool AUTO_MODE_ENABLED = false; // Garder false jusqu'aux essais d'intégration au sol.
+constexpr float MANUAL_RC_MAX_ANGLE_DEG = 25.0f;
+
 // ------------------------------------------------------------
 // CONSIGNES D'ATTITUDE (setpoints) - tres facilement modifiables
 // ------------------------------------------------------------
@@ -165,5 +171,7 @@ constexpr uint32_t FAILSAFE_TIMEOUT_MS = 500; // Duree sans signal avant declenc
 constexpr uint32_t UART_BAUD_RATE = 115200;
 constexpr uint32_t IMU_STALE_TIMEOUT_US = 100000;
 constexpr uint8_t IMU_MAX_CONSECUTIVE_ERRORS = 5;
+constexpr uint32_t AUTO_COMMAND_TIMEOUT_MS = 300;
+constexpr float AUTO_MIN_NAV_QUALITY = 0.60f;
 
 #endif // CONFIG_H

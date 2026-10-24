@@ -32,16 +32,29 @@ class VirtualCamera:
         # NED world: ground at z=0. Layout at y=0, with known size and ID.
         markers = []
         camera = self.config["camera"]
-        for index, marker_id in enumerate(ids):
-            center_n = float(camera.get("marker_layout_north_m", 8.0)) + index * float(camera.get("marker_spacing_m", 5.0))
-            center_e = -float(camera.get("marker_lateral_spacing_m", 3.0)) + (index % 2) * 2.0 * float(camera.get("marker_lateral_spacing_m", 3.0))
-            s = self.marker_size
-            points = np.array([
-                [center_n - s/2, center_e - s/2, 0.0],
-                [center_n - s/2, center_e + s/2, 0.0],
-                [center_n + s/2, center_e + s/2, 0.0],
-                [center_n + s/2, center_e - s/2, 0.0],
-            ], dtype=float)
+        mapped = self.config.get("markers", [])
+        if mapped:
+            layout = [(int(item["id"]), float(item["north_m"]), float(item["east_m"]),
+                       float(item.get("altitude_m", 0.0)), float(item.get("size_m", self.marker_size)),
+                       float(item.get("yaw_deg", 0.0))) for item in mapped]
+        else:
+            layout = []
+            for index, marker_id in enumerate(ids):
+                center_n = float(camera.get("marker_layout_north_m", 8.0)) + index * float(camera.get("marker_spacing_m", 5.0))
+                center_e = -float(camera.get("marker_lateral_spacing_m", 3.0)) + (index % 2) * 2.0 * float(camera.get("marker_lateral_spacing_m", 3.0))
+                layout.append((int(marker_id), center_n, center_e, 0.0, self.marker_size, 0.0))
+        for marker_id, center_n, center_e, altitude, s, yaw_deg in layout:
+            yaw = math.radians(yaw_deg)
+            forward = np.array([math.cos(yaw), math.sin(yaw)])
+            right = np.array([-math.sin(yaw), math.cos(yaw)])
+            center = np.array([center_n, center_e])
+            corners_ne = np.array([center - forward * s/2 - right * s/2,
+                                   center - forward * s/2 + right * s/2,
+                                   center + forward * s/2 + right * s/2,
+                                   center + forward * s/2 - right * s/2])
+            s = float(s)
+            points = np.column_stack((corners_ne[:, 0], corners_ne[:, 1],
+                                      np.full(4, -float(altitude))))
             side = 256
             # Markers must have a quiet white region to be detectable on a
             # continuous scene; the generated bitmap itself contains only the
@@ -66,6 +79,7 @@ class VirtualCamera:
             [1.0, 0.0, 0.0],
             [0.0, math.cos(mount), math.sin(mount)],
         ], dtype=float)
+        self.camera_to_body = camera_to_body
         camera_to_ned = body_to_ned @ camera_to_body
         world_to_camera = camera_to_ned.T
         cam_pos = state.position_ned_m

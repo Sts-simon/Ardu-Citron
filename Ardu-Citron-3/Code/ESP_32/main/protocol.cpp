@@ -8,6 +8,7 @@ namespace {
 constexpr size_t CRC_START = 2;
 constexpr size_t CRC_OFFSET = VISION_FRAME_SIZE - 2;
 constexpr size_t HEADER_SIZE = 5;
+constexpr size_t GUIDANCE_CRC_OFFSET = GUIDANCE_FRAME_SIZE - 2;
 
 void putU16(uint8_t *out, uint16_t value) {
   out[0] = static_cast<uint8_t>(value & 0xFFu);
@@ -39,6 +40,14 @@ float getFloat(const uint8_t *in) {
   float value;
   memcpy(&value, &bits, sizeof(value));
   return value;
+}
+
+bool validGuidance(const GuidanceCommandFrame &frame) {
+  return isfinite(frame.rollDeg) && isfinite(frame.pitchDeg) && isfinite(frame.yawRateDps) &&
+         isfinite(frame.navigationQuality) && fabsf(frame.rollDeg) <= 25.0f &&
+         fabsf(frame.pitchDeg) <= 8.0f && fabsf(frame.yawRateDps) <= 25.0f &&
+         frame.validityMs > 0 && frame.validityMs <= GUIDANCE_MAX_VALIDITY_MS &&
+         frame.navigationQuality >= 0.0f && frame.navigationQuality <= 1.0f;
 }
 
 bool validFrame(const VisionPoseFrame &frame) {
@@ -88,6 +97,25 @@ bool encodeVisionFrame(const VisionPoseFrame &frame, uint8_t *output, size_t cap
   return true;
 }
 
+bool encodeGuidanceFrame(const GuidanceCommandFrame &frame, uint8_t *output, size_t capacity) {
+  if (output == nullptr || capacity < GUIDANCE_FRAME_SIZE || !validGuidance(frame)) return false;
+  output[0] = VISION_FRAME_SYNC_0;
+  output[1] = VISION_FRAME_SYNC_1;
+  output[2] = VISION_PROTOCOL_VERSION;
+  output[3] = GUIDANCE_MESSAGE_SETPOINT;
+  output[4] = GUIDANCE_PAYLOAD_SIZE;
+  putU16(output + 5, frame.sequence);
+  putU32(output + 7, frame.senderTimestampMs);
+  putFloat(output + 11, frame.rollDeg);
+  putFloat(output + 15, frame.pitchDeg);
+  putFloat(output + 19, frame.yawRateDps);
+  putU16(output + 23, frame.validityMs);
+  putFloat(output + 25, frame.navigationQuality);
+  putU16(output + GUIDANCE_CRC_OFFSET,
+         visionCrc16(output + CRC_START, GUIDANCE_CRC_OFFSET - CRC_START));
+  return true;
+}
+
 bool isNewerSequence(uint16_t candidate, uint16_t previous) {
   const uint16_t difference = static_cast<uint16_t>(candidate - previous);
   return difference != 0 && difference < 0x8000u;
@@ -105,7 +133,56 @@ void VisionFrameParser::discardFirstByte() {
 void VisionFrameParser::seekSync() {
   while (_used > 0 && _buffer[0] != VISION_FRAME_SYNC_0) discardFirstByte();
   while (_used >= 2 && _buffer[1] != VISION_FRAME_SYNC_1) discardFirstByte();
-  if (_used == 2) return; // Keep a trailing first sync byte across calls.
+}
+
+void GuidanceFrameParser::reset() { _used = 0; }
+
+void GuidanceFrameParser::discardFirstByte() {
+  if (_used > 1) memmove(_buffer, _buffer + 1, _used - 1);
+  if (_used > 0) --_used;
+}
+
+void GuidanceFrameParser::seekSync() {
+  while (_used > 0 && _buffer[0] != VISION_FRAME_SYNC_0) discardFirstByte();
+  while (_used >= 2 && _buffer[1] != VISION_FRAME_SYNC_1) discardFirstByte();
+}
+
+bool GuidanceFrameParser::decode(GuidanceCommandFrame &frame) const {
+  if (_buffer[2] != VISION_PROTOCOL_VERSION || _buffer[3] != GUIDANCE_MESSAGE_SETPOINT ||
+      _buffer[4] != GUIDANCE_PAYLOAD_SIZE) return false;
+  if (getU16(_buffer + GUIDANCE_CRC_OFFSET) !=
+      visionCrc16(_buffer + CRC_START, GUIDANCE_CRC_OFFSET - CRC_START)) return false;
+  frame.sequence = getU16(_buffer + 5);
+  frame.senderTimestampMs = getU32(_buffer + 7);
+  frame.rollDeg = getFloat(_buffer + 11);
+  frame.pitchDeg = getFloat(_buffer + 15);
+  frame.yawRateDps = getFloat(_buffer + 19);
+  frame.validityMs = getU16(_buffer + 23);
+  frame.navigationQuality = getFloat(_buffer + 25);
+  return validGuidance(frame);
+}
+
+bool GuidanceFrameParser::feed(uint8_t byte, GuidanceCommandFrame &frame) {
+  if (_used == GUIDANCE_FRAME_SIZE) discardFirstByte();
+  _buffer[_used++] = byte;
+  seekSync();
+  if (_used >= HEADER_SIZE &&
+      (_buffer[2] != VISION_PROTOCOL_VERSION || _buffer[3] != GUIDANCE_MESSAGE_SETPOINT ||
+       _buffer[4] != GUIDANCE_PAYLOAD_SIZE)) {
+    ++_rejectedFrames;
+    discardFirstByte();
+    seekSync();
+  }
+  if (_used == GUIDANCE_FRAME_SIZE) {
+    if (decode(frame)) {
+      _used = 0;
+      return true;
+    }
+    ++_rejectedFrames;
+    discardFirstByte();
+    seekSync();
+  }
+  return false;
 }
 
 bool VisionFrameParser::decode(VisionPoseFrame &frame) const {

@@ -31,7 +31,14 @@ PID pidYaw  (Kp_yaw,   Ki_yaw,   Kd_yaw,   PID_INTEGRAL_LIMIT, PID_OUTPUT_LIMIT,
 Servo servo1, servo2, servo3;
 HardwareSerial PiSerial(2);
 VisionFrameParser visionParser;
+GuidanceFrameParser guidanceParser;
 VisionPoseFrame latestVisionFrame{};
+GuidanceCommandFrame latestGuidanceFrame{};
+bool guidanceFrameSeen = false;
+bool guidanceFramePending = false;
+uint16_t lastGuidanceSequence = 0;
+uint16_t lastGuidanceAppliedSequence = 0;
+float manualServo1Deg = 0.0f, manualServo2Deg = 0.0f, manualServo3Deg = 0.0f;
 bool visionFrameSeen = false;
 bool armSwitchWasLow = false;
 uint16_t lastVisionSequence = 0;
@@ -125,8 +132,13 @@ void taskServoOutput() {
   }
 #endif
 
+  if (flightModes.manualMode() && !failsafe.isActive()) {
+    writeServo(servo1, servo1Output, manualServo1Deg);
+    writeServo(servo2, servo2Output, manualServo2Deg);
+    writeServo(servo3, servo3Output, manualServo3Deg);
+    return;
+  }
   ServoCommandsDeg mixed = Mixer::mix(rCmd, pCmd, yCmd);
-
   writeServo(servo1, servo1Output, mixed.servo1Deg);
   writeServo(servo2, servo2Output, mixed.servo2Deg);
   writeServo(servo3, servo3Output, mixed.servo3Deg);
@@ -137,22 +149,53 @@ void taskServoOutput() {
 void taskUartBridge() {
 #if ENABLE_UART_BRIDGE
   while (PiSerial.available() > 0) {
-    VisionPoseFrame candidate;
-    if (visionParser.feed(static_cast<uint8_t>(PiSerial.read()), candidate) &&
-        (!visionFrameSeen || isNewerSequence(candidate.sequence, lastVisionSequence))) {
-      latestVisionFrame = candidate;
-      lastVisionSequence = candidate.sequence;
+    const uint8_t byte = static_cast<uint8_t>(PiSerial.read());
+    VisionPoseFrame poseCandidate;
+    if (visionParser.feed(byte, poseCandidate) &&
+        (!visionFrameSeen || isNewerSequence(poseCandidate.sequence, lastVisionSequence))) {
+      latestVisionFrame = poseCandidate;
+      lastVisionSequence = poseCandidate.sequence;
       visionFrameSeen = true;
+    }
+    GuidanceCommandFrame guidanceCandidate;
+    if (guidanceParser.feed(byte, guidanceCandidate) &&
+        (!guidanceFrameSeen || isNewerSequence(guidanceCandidate.sequence, lastGuidanceSequence))) {
+      latestGuidanceFrame = guidanceCandidate;
+      lastGuidanceSequence = guidanceCandidate.sequence;
+      guidanceFrameSeen = true;
+      guidanceFramePending = true;
     }
   }
 #endif
 }
 
+void applyPendingGuidance(uint32_t nowMs) {
+  if (!AUTO_MODE_ENABLED || !guidanceFramePending || !guidanceFrameSeen ||
+      latestGuidanceFrame.sequence == lastGuidanceAppliedSequence) return;
+  const PilotCommand autoCommand{latestGuidanceFrame.rollDeg, latestGuidanceFrame.pitchDeg,
+                                 latestGuidanceFrame.yawRateDps};
+  if (flightModes.submitAutoCommand(autoCommand, nowMs, latestGuidanceFrame.validityMs,
+                                    latestGuidanceFrame.navigationQuality)) {
+    lastGuidanceAppliedSequence = latestGuidanceFrame.sequence;
+  } else {
+    flightModes.notifyAutoCommandLost();
+  }
+  guidanceFramePending = false;
+}
+
 void taskRcAndModes() {
   RcFrame frame;
+  bool armRequestPending = false;
   const uint32_t nowMs = millis();
   if (rcInput.read(frame, nowMs)) {
     flightModes.notifyRcFrame(true, nowMs);
+    const FlightMode requestedMode = frame.manualSelected ? FlightMode::MANUAL :
+                                     (frame.autoRequested ? FlightMode::AUTO : FlightMode::STABILIZE);
+    flightModes.setPilotMode(requestedMode == FlightMode::AUTO && !AUTO_MODE_ENABLED
+                                 ? FlightMode::STABILIZE : requestedMode);
+    manualServo1Deg = frame.directServo1Deg;
+    manualServo2Deg = frame.directServo2Deg;
+    manualServo3Deg = frame.directServo3Deg;
     failsafe.notifySignalReceived();
     if (frame.disarmRequested) {
       armSwitchWasLow = true;
@@ -160,16 +203,23 @@ void taskRcAndModes() {
       failsafe.begin();
     } else {
       if (!flightModes.submitCommand(frame.command, nowMs)) flightModes.notifyCommandLost();
+      if (frame.autoRequested) applyPendingGuidance(nowMs);
       if (frame.armRequested && armSwitchWasLow) {
         armSwitchWasLow = false; // Un cycle interrupteur bas->haut est requis pour chaque armement.
-        flightModes.requestArm(nowMs);
+        armRequestPending = true;
       }
+      if (armRequestPending) flightModes.requestArm(nowMs);
     }
   } else {
     flightModes.notifyRcFrame(false, nowMs);
   }
 
+  // Keep the RC/manual command stream alive while AUTO is active. A live mode
+  // switch to manual immediately restores these RC setpoints on the next loop.
   const bool healthy = imuHealth.update(micros());
+  // Accept updates while the physical AUTO selector remains selected. A command
+  // is a short-lived lease; no repeated parsing means it expires locally.
+  if (flightModes.autoEnabled()) applyPendingGuidance(nowMs);
   const FlightMode mode = flightModes.update(nowMs, healthy);
   if (mode == FlightMode::FAILSAFE || mode == FlightMode::SENSOR_FAULT) failsafe.trigger();
 }
@@ -178,6 +228,7 @@ void taskRcAndModes() {
 // Setup
 // ------------------------------------------------------------
 void setup() {
+  flightModes.configureAuto(AUTO_MODE_ENABLED, AUTO_MIN_NAV_QUALITY);
   Serial.begin(UART_BAUD_RATE);
 
 #if ENABLE_BUZZER

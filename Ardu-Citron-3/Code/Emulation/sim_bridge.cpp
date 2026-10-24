@@ -6,6 +6,7 @@
 #include "../ESP_32/main/kalman.h"
 #include "../ESP_32/main/mixer.h"
 #include "../ESP_32/main/pid.h"
+#include "../ESP_32/main/protocol.h"
 #include "../ESP_32/main/servo_output.h"
 
 namespace {
@@ -40,12 +41,22 @@ struct SimController {
   float pulse1Us = 1500.0f;
   float pulse2Us = 1500.0f;
   float pulse3Us = 1500.0f;
+  FlightMode requestedMode = FlightMode::STABILIZE;
+  bool autoArmed = false;
+  bool autoAllowed = false;
+  uint16_t lastAutoSequence = 0;
 };
 
 extern "C" {
 
 SimController *sim_controller_create() { return new SimController(); }
 void sim_controller_destroy(SimController *c) { delete c; }
+
+void sim_controller_configure_auto(SimController *c, int enabled, float minimumQuality) {
+  if (!c) return;
+  c->autoAllowed = enabled != 0;
+  c->modes.configureAuto(c->autoAllowed, minimumQuality);
+}
 
 int sim_controller_initialize(SimController *c, float rollDeg, float pitchDeg, uint32_t nowUs) {
   if (!c || !std::isfinite(rollDeg) || !std::isfinite(pitchDeg)) return 0;
@@ -65,7 +76,9 @@ int sim_controller_step(SimController *c, float dt, uint32_t nowMs,
                         int imuUpdated, int imuValid, int rcUpdated, int rcValid,
                         int rcArm, int rcDisarm, int controlTick, int servoTick,
                         float commandRollDeg, float commandPitchDeg, float commandYawRateDps,
-                        float *output, uint32_t nowUs) {
+                        float *output, uint32_t nowUs, int modeSwitch,
+                        const uint8_t *guidanceBytes, size_t guidanceLength,
+                        int directManual, float directServo1, float directServo2, float directServo3) {
   if (!c || !output || !std::isfinite(dt) || dt <= 0.0f) return 0;
   if (!c->initialized) return 0;
 
@@ -80,18 +93,48 @@ int sim_controller_step(SimController *c, float dt, uint32_t nowMs,
     }
   }
 
+  const FlightMode selected = modeSwitch == 2 && c->autoAllowed ? FlightMode::AUTO :
+                              (modeSwitch == 0 ? FlightMode::MANUAL : FlightMode::STABILIZE);
+  c->requestedMode = selected;
+  c->modes.setPilotMode(selected);
+
+  if (guidanceBytes && guidanceLength) {
+    GuidanceFrameParser parser;
+    GuidanceCommandFrame frame{};
+    for (size_t i = 0; i < guidanceLength; ++i) {
+      if (!parser.feed(guidanceBytes[i], frame)) continue;
+      if (c->autoArmed && !isNewerSequence(frame.sequence, c->lastAutoSequence)) continue;
+      c->lastAutoSequence = frame.sequence;
+      if (c->autoAllowed && c->requestedMode == FlightMode::AUTO) {
+        const PilotCommand command{frame.rollDeg, frame.pitchDeg, frame.yawRateDps};
+        if (c->modes.submitAutoCommand(command, nowMs, frame.validityMs, frame.navigationQuality))
+          c->autoArmed = true;
+        else
+          c->modes.notifyAutoCommandLost();
+      }
+    }
+  }
+
   if (rcUpdated && rcValid) {
     c->modes.notifyRcFrame(true, nowMs);
-    if (rcDisarm) c->modes.disarm();
-    else {
-      const PilotCommand command{commandRollDeg, commandPitchDeg, commandYawRateDps};
-      if (!c->modes.submitCommand(command, nowMs)) c->modes.notifyCommandLost();
-      if (rcArm) c->modes.requestArm(nowMs);
+    if (rcDisarm) {
+      c->modes.disarm();
+      c->autoArmed = false;
+    } else {
+      if (!c->modes.submitCommand(PilotCommand{commandRollDeg, commandPitchDeg, commandYawRateDps}, nowMs))
+        c->modes.notifyCommandLost();
+      if (rcArm) {
+        c->modes.setPilotMode(c->requestedMode);
+        c->modes.requestArm(nowMs);
+      }
+      if (c->requestedMode == FlightMode::AUTO && c->autoArmed) c->modes.requestAuto(nowMs);
     }
-  } else if (rcUpdated) c->modes.notifyRcFrame(false, nowMs);
+  } else if (rcUpdated) {
+    c->modes.notifyRcFrame(false, nowMs);
+  }
 
   const FlightMode mode = c->modes.update(nowMs, c->health.update(nowUs));
-  const bool enabled = mode == FlightMode::STABILIZE;
+  const bool enabled = c->modes.controlEnabled();
   if (controlTick) {
     if (enabled) {
       const PilotCommand command = c->modes.command();
@@ -104,13 +147,18 @@ int sim_controller_step(SimController *c, float dt, uint32_t nowMs,
     }
   }
   if (servoTick) {
-    const ServoCommandsDeg mixed = Mixer::mix(
-      enabled ? c->actuatorRollDeg : 0.0f,
-      enabled ? c->actuatorPitchDeg : 0.0f,
-      enabled ? c->actuatorYawDeg : 0.0f);
-    c->pulse1Us = static_cast<float>(c->servo1.update(mixed.servo1Deg, dt));
-    c->pulse2Us = static_cast<float>(c->servo2.update(mixed.servo2Deg, dt));
-    c->pulse3Us = static_cast<float>(c->servo3.update(mixed.servo3Deg, dt));
+    if (mode == FlightMode::MANUAL) {
+      c->pulse1Us = static_cast<float>(c->servo1.update(directManual ? directServo1 : 0.0f, dt));
+      c->pulse2Us = static_cast<float>(c->servo2.update(directManual ? directServo2 : 0.0f, dt));
+      c->pulse3Us = static_cast<float>(c->servo3.update(directManual ? directServo3 : 0.0f, dt));
+    } else {
+      const ServoCommandsDeg mixed = Mixer::mix(enabled ? c->actuatorRollDeg : 0.0f,
+                                                  enabled ? c->actuatorPitchDeg : 0.0f,
+                                                  enabled ? c->actuatorYawDeg : 0.0f);
+      c->pulse1Us = static_cast<float>(c->servo1.update(mixed.servo1Deg, dt));
+      c->pulse2Us = static_cast<float>(c->servo2.update(mixed.servo2Deg, dt));
+      c->pulse3Us = static_cast<float>(c->servo3.update(mixed.servo3Deg, dt));
+    }
   }
 
   output[0] = c->estimatedRollDeg;
@@ -124,7 +172,7 @@ int sim_controller_step(SimController *c, float dt, uint32_t nowMs,
   output[8] = c->pulse2Us;
   output[9] = c->pulse3Us;
   output[10] = static_cast<float>(static_cast<uint8_t>(mode));
-  output[11] = enabled ? 1.0f : 0.0f;
+  output[11] = enabled || mode == FlightMode::MANUAL ? 1.0f : 0.0f;
   output[12] = c->health.healthy() ? 1.0f : 0.0f;
   return 1;
 }

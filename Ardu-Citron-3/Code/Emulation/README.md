@@ -41,8 +41,33 @@ commandent roll/pitch (degrés) et taux de lacet (degrés/s); le simulateur met
 l'armement RC à l'état haut après chaque point de scénario. Chaque pas de la
 simulation appelle les vrais filtres et contrôleur natifs. Le Pi voit des
 images synthétiques via le détecteur ArUco existant; les poses sont encodées et
-décodées à travers le codec UART v1. Le repère de la pose camera est encore
-indicatif: la mesure n'est pas injectée comme consigne ESP32.
+décodées à travers le codec UART v1.
+
+## Navigation expérimentale et géorepérage
+
+Le module partagé `../Pi/autonomy.py` fournit une première estimation de pose
+par PnP ArUco, une propagation inertielle simplifiée corrigée par caméra, une
+entrée GPS optionnelle et un guidage vers les marqueurs avec récupération vers
+le centre si l'avion approche du rectangle. Le même code est importé par
+l'émulateur et le runtime CM4. Rectangle, marge, marqueurs, calibration caméra
+et sources de position se règlent dans ce fichier; dans la config de simulation,
+`autopilot.enabled` reste à `false` par défaut pour n'appliquer que les
+scénarios RC pendant les premiers tests. Le journal ajoute l'estimation de
+navigation et les consignes de guidage pour permettre comparaison.
+
+La configuration de démonstration propose un rectangle local de 200 × 200 m,
+avec une marge intérieure de 30 m et quatre repères d'essai à remplacer par
+l'arpentage réel. Le premier marqueur de l'émulateur est rapproché de son point
+de départ uniquement pour vérifier la chaîne caméra→pose en test automatisé. Le
+solveur rejette les poses dont l'erreur de reprojection dépasse 3 px ou dont
+les points sont derrière la caméra. Une navigation périmée/incertaine produit
+`NAV_UNCERTAIN` et aucune consigne. Le Pi peut encoder des consignes type 2,
+mais `autopilot.enabled` reste `false` par défaut et l'ESP32 conserve également
+`AUTO_MODE_ENABLED=false`; la transmission seule n'arme jamais le contrôleur.
+Le Pi doit recevoir de vrais adaptateurs IMU/GPS avant que sa navigation puisse
+être considérée valide. Le GPS simulé s'active via `navigation.use_gps`; IMU et
+vision peuvent également être activées/désactivées. Cette fusion complémentaire
+est un prototype, non une INS robuste.
 
 ## Modèle et paramètres provisoires
 
@@ -71,6 +96,24 @@ ne doivent pas être considérées comme validées. La perte RC ou IMU déclench
 les modes logiciels existants, mais la stratégie de retour des gouvernes sur
 un avion réel reste volontairement non affirmée : `centre` ici est seulement
 le comportement actuel du firmware, pas une recommandation de sécurité en vol.
+
+## Runtime Raspberry Pi CM4
+
+Depuis `Code/Pi`, installer `python3 -m pip install -r requirements.txt`,
+calibrer la caméra et modifier `autonomy.json` (intrinsèques, matrice de
+montage, emplacement et orientation de chaque repère et limites du rectangle).
+Puis lancer `python3 autonomy_runtime.py --dry-run` pour afficher détections et
+état de navigation sans transmission. Il faut fournir les adaptateurs réels
+`imu_provider` et/ou `gps_provider` adaptés au matériel avant d'obtenir une
+navigation valide.Le mode UART transmet les poses caméra comme télémétrie. Si et seulement si
+`autopilot.enabled` est changé explicitement, le runtime émet également des
+consignes type 2 toutes les 100 ms ou à chaque changement, valables 250 ms.
+L'ESP32 vérifie le CRC, la séquence, les limites et la fraîcheur; AUTO exige en
+plus l'autorisation compile-time `AUTO_MODE_ENABLED`, le sélecteur AUTO et
+l'action armement côté RC. À désactiver tant que les adaptateurs de capteurs,
+la calibration et les essais au sol ne sont pas faits. Aucune sortie Pi ne
+commande directement servos ou moteur.
+
 
 ## Défauts simulables
 

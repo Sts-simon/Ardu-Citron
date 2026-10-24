@@ -87,6 +87,47 @@ static void testImuHealthAndModes() {
   assert(!timeoutModes.requestArm(112)); // explicit disarm/re-arm is required
   timeoutModes.disarm();
   assert(timeoutModes.mode() == FlightMode::DISARMED);
+
+  FlightModeManager autoModes(200, 300, 30.0f);
+  autoModes.configureAuto(true, 0.5f);
+  assert(autoModes.completeStartup(true));
+  autoModes.notifyRcFrame(true, 10);
+  autoModes.setPilotMode(FlightMode::AUTO);
+  assert(!autoModes.submitAutoCommand(PilotCommand{0, 0, 0}, 10, 100, 0.4f));
+  assert(autoModes.submitAutoCommand(PilotCommand{12, 2, 5}, 10, 100, 0.9f));
+  assert(autoModes.submitCommand(neutral, 10));
+  assert(autoModes.requestArm(10));
+  assert(autoModes.mode() == FlightMode::AUTO);
+  assert(autoModes.command().rollDeg == 12.0f);
+  assert(autoModes.update(111, true) == FlightMode::STABILIZE); // navigation expired, RC alive
+  assert(autoModes.command().rollDeg == 0.0f);
+  autoModes.setPilotMode(FlightMode::AUTO);
+  assert(autoModes.submitAutoCommand(PilotCommand{3, 0, 0}, 120, 100, 0.9f));
+  assert(autoModes.requestAuto(120));
+  autoModes.setPilotMode(FlightMode::MANUAL);
+  assert(autoModes.mode() == FlightMode::MANUAL); // immediate RC takeover
+  assert(!autoModes.controlEnabled());
+
+  FlightModeManager disabledAuto(200, 300, 30.0f);
+  assert(disabledAuto.completeStartup(true));
+  disabledAuto.configureAuto(false, 0.6f);
+  disabledAuto.setPilotMode(FlightMode::AUTO);
+  assert(!disabledAuto.submitAutoCommand(PilotCommand{1, 0, 0}, 10, 100, 0.9f));
+  assert(disabledAuto.mode() == FlightMode::DISARMED);
+  disabledAuto.notifyRcFrame(true, 10);
+  assert(disabledAuto.submitCommand(neutral, 10));
+  assert(disabledAuto.requestArm(10));
+  assert(disabledAuto.mode() == FlightMode::STABILIZE);
+
+  FlightModeManager lostRcAuto(200, 300, 30.0f);
+  lostRcAuto.configureAuto(true, 0.5f);
+  assert(lostRcAuto.completeStartup(true));
+  lostRcAuto.notifyRcFrame(true, 10);
+  lostRcAuto.setPilotMode(FlightMode::AUTO);
+  assert(lostRcAuto.submitCommand(neutral, 10));
+  assert(lostRcAuto.submitAutoCommand(PilotCommand{2, 0, 0}, 10, 100, 0.9f));
+  assert(lostRcAuto.requestArm(10));
+  assert(lostRcAuto.update(211, true) == FlightMode::FAILSAFE);
 }
 
 static void testProtocol() {
@@ -124,6 +165,21 @@ static void testProtocol() {
   decoded = false;
   for (size_t i = 0; i < sizeof(stream); ++i) decoded |= resync.feed(stream[i], received);
   assert(decoded && received.sequence == 42);
+
+  const GuidanceCommandFrame command{9, 1234, 12.0f, -3.0f, 8.0f, 150, 0.95f};
+  uint8_t guidanceBytes[GUIDANCE_FRAME_SIZE];
+  assert(encodeGuidanceFrame(command, guidanceBytes, sizeof(guidanceBytes)));
+  assert(!encodeGuidanceFrame(command, guidanceBytes, sizeof(guidanceBytes) - 1));
+  GuidanceFrameParser guidanceParser;
+  GuidanceCommandFrame decodedCommand{};
+  bool gotCommand = false;
+  for (size_t i = 0; i < sizeof(guidanceBytes); ++i)
+    gotCommand |= guidanceParser.feed(guidanceBytes[i], decodedCommand);
+  assert(gotCommand && decodedCommand.sequence == command.sequence);
+  assert(fabsf(decodedCommand.rollDeg - command.rollDeg) < 1e-6f);
+  assert(decodedCommand.validityMs == 150);
+  assert(!encodeGuidanceFrame(GuidanceCommandFrame{0, 0, 26, 0, 0, 100, 0.9f},
+                              guidanceBytes, sizeof(guidanceBytes)));
 }
 
 int main() {

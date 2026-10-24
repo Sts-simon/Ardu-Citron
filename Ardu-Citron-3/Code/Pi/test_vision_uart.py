@@ -8,7 +8,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from vision_uart import StreamDecoder, VisionPose, crc16_ccitt_false, decode_pose, encode_pose
+from vision_uart import (GuidanceCommand, GuidanceStreamDecoder, StreamDecoder, VisionPose,
+                         crc16_ccitt_false, decode_guidance, decode_pose, encode_guidance, encode_pose)
 
 
 class VisionUartTests(unittest.TestCase):
@@ -45,6 +46,39 @@ class VisionUartTests(unittest.TestCase):
         decoded = decoder.feed(bytes(damaged) + valid)
         self.assertEqual([pose.sequence for pose in decoded], [0])
         self.assertGreater(decoder.rejected, 0)
+
+    def test_guidance_command_cross_language_roundtrip_and_bounds(self):
+        command = GuidanceCommand(9, 1234, 12.0, -3.0, 8.0, 150, 0.95)
+        encoded = encode_guidance(command)
+        self.assertEqual(len(encoded), 31)
+        decoded_command = decode_guidance(encoded)
+        self.assertEqual(decoded_command.sequence, command.sequence)
+        self.assertEqual(decoded_command.validity_ms, command.validity_ms)
+        for actual, expected in ((decoded_command.roll_deg, command.roll_deg),
+                                 (decoded_command.pitch_deg, command.pitch_deg),
+                                 (decoded_command.yaw_rate_dps, command.yaw_rate_dps),
+                                 (decoded_command.navigation_quality, command.navigation_quality)):
+            self.assertAlmostEqual(actual, expected, places=6)
+        parser = GuidanceStreamDecoder()
+        self.assertEqual(parser.feed(b"noise" + encoded[:9]), [])
+        streamed = parser.feed(encoded[9:])
+        self.assertEqual(len(streamed), 1)
+        self.assertEqual(streamed[0].sequence, command.sequence)
+        self.assertAlmostEqual(streamed[0].navigation_quality, command.navigation_quality, places=6)
+        with self.assertRaises(ValueError):
+            encode_guidance(GuidanceCommand(0, 0, 26.0, 0.0, 0.0, 100, 0.9))
+        with self.assertRaises(ValueError):
+            decode_guidance(encoded[:-1] + bytes([encoded[-1] ^ 1]))
+        root = pathlib.Path(__file__).resolve().parents[1] / "ESP_32"
+        with tempfile.TemporaryDirectory(prefix="ardu-citron-guidance-") as temp:
+            executable = pathlib.Path(temp) / "guidance-fixture"
+            subprocess.run([
+                "g++", "-std=c++17", "-I", str(root / "test/native"),
+                "-I", str(root / "main"), str(root / "test/native/guidance_fixture.cpp"),
+                str(root / "main/protocol.cpp"), "-o", str(executable),
+            ], check=True)
+            firmware_hex = subprocess.check_output([str(executable)], text=True).strip()
+            self.assertEqual(firmware_hex, encoded.hex())
 
     def test_semantic_invalidity_is_rejected(self):
         with self.assertRaises(ValueError):

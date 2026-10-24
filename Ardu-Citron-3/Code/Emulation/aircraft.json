@@ -1,0 +1,88 @@
+{
+  "simulation": {
+    "dt_s": 0.002,
+    "duration_s": 20.0,
+    "seed": 7,
+    "camera_period_s": 0.10,
+    "rc_period_s": 0.02,
+    "imu_period_s": 0.002,
+    "control_period_s": 0.005,
+    "servo_period_s": 0.02,
+    "uart_period_s": 0.10,
+    "output_dir": "output"
+  },
+  "aircraft": {
+    "mass_kg": 0.55,
+    "wing_span_m": 1.0,
+    "wing_area_m2": 0.18,
+    "mean_chord_m": 0.18,
+    "aspect_ratio": 5.56,
+    "inertia_kg_m2": {"ixx": 0.012, "iyy": 0.010, "izz": 0.020, "ixz": 0.0},
+    "initial_position_ned_m": [0.0, 0.0, -6.0],
+    "initial_velocity_body_m_s": [10.0, 0.0, 0.0],
+    "initial_attitude_deg": [0.0, 0.0, 0.0],
+    "gravity_m_s2": 9.80665,
+    "air_density_kg_m3": 1.225,
+    "wind_ned_m_s": [0.0, 0.0, 0.0],
+    "motor_thrust_n": 0.0,
+    "aero": {
+      "cl0": 0.0,
+      "cl_alpha_per_rad": 4.5,
+      "cl_max": 1.1,
+      "cd0": 0.035,
+      "induced_drag_k": 0.065,
+      "cy_beta_per_rad": -0.55,
+      "cl_roll_per_rad": 0.12,
+      "cm0": 0.0,
+      "cm_alpha_per_rad": 0.0,
+      "cm_pitch_rate": -15.0,
+      "cn_beta_per_rad": 0.08,
+      "cn_yaw_rate": -0.8,
+      "control_roll_per_rad": 0.16,
+      "control_pitch_per_rad": 0.22,
+      "control_yaw_per_rad": 0.12
+    },
+    "actuators": {
+      "max_surface_rad": 0.18,
+      "roll_surface_m2": 0.009,
+      "pitch_surface_m2": 0.008,
+      "yaw_surface_m2": 0.007,
+      "engine_enabled": false
+    }
+  },
+  "camera": {
+    "width_px": 640,
+    "height_px": 480,
+    "horizontal_fov_deg": 66.0,
+    "mount_down_deg": 45.0,
+    "marker_size_m": 0.50,
+    "marker_ids": [7, 12, 23, 31],
+    "marker_dictionary": "DICT_4X4_50",
+    "marker_plane_z_ned_m": 0.0,
+    "marker_layout_north_m": 3.0,
+    "marker_spacing_m": 3.0,
+    "marker_lateral_spacing_m": 2.0,
+    "exposure_s": 0.002,
+    "readout_s": 0.012,
+    "distortion": [-0.07, 0.01, 0.0, 0.0, 0.0],
+    "noise_sigma_px": 0.35,
+    "drop_probability": 0.04,
+    "minimum_visible_fraction": 0.30
+  },
+  "sensors": {
+    "gyro_noise_std_dps": 0.08,
+    "gyro_bias_dps": [0.15, -0.10, 0.08],
+    "gyro_bias_walk_std_dps_sqrt_s": 0.008,
+    "accel_noise_std_g": 0.015,
+    "imu_dropout_probability": 0.0,
+    "rc_dropout_probability": 0.0,
+    "uart_corruption_probability": 0.0
+  },
+  "scenarios": [
+    {"time_s": 1.0, "type": "rc_command", "roll_deg": 0.0, "pitch_deg": 0.0, "yaw_rate_dps": 0.0, "arm": true},
+    {"time_s": 3.0, "type": "rc_command", "roll_deg": 12.0, "pitch_deg": 1.0, "yaw_rate_dps": 0.0},
+    {"time_s": 8.0, "type": "rc_command", "roll_deg": -12.0, "pitch_deg": 1.0, "yaw_rate_dps": 0.0},
+    {"time_s": 12.0, "type": "rc_command", "roll_deg": 0.0, "pitch_deg": -2.0, "yaw_rate_dps": 0.0},
+    {"time_s": 16.0, "type": "rc_command", "roll_deg": 0.0, "pitch_deg": 0.0, "yaw_rate_dps": 0.0}
+  ]
+}

@@ -1,3 +1,6 @@
+# Build firmware PlatformIO
+Ardu-Citron-3/Code/ESP_32/.pio/
+
 # Rust
 target/
 **/target/

@@ -4,14 +4,25 @@
 void Failsafe::begin() {
   _lastSignalMs = millis();
   _active = false;
+  _latched = false;
 }
 
 void Failsafe::notifySignalReceived() {
   _lastSignalMs = millis();
-  _active = false;
+  if (!_latched) _active = false;
+}
+
+void Failsafe::trigger() {
+  _active = true;
+  _latched = true;
 }
 
 bool Failsafe::update() {
+  if (_latched) {
+    _active = true;
+    return true;
+  }
+
   if (!RC_RECEIVER_CONNECTED) {
     // Aucun recepteur RC branche pour le moment (etape actuelle : maintien
     // d'attitude seul). Le module reste pret mais inactif, pour ne pas
@@ -23,7 +34,7 @@ bool Failsafe::update() {
   }
 
   if (millis() - _lastSignalMs > FAILSAFE_TIMEOUT_MS) {
-    _active = true;
+    trigger();
   }
   return _active;
 }

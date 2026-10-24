@@ -30,6 +30,7 @@ bool IMU::readRegisters(uint8_t startReg, uint8_t *buffer, uint8_t length) {
   }
   uint8_t received = Wire.requestFrom((int)MPU6050_I2C_ADDR, (int)length, (int)true);
   if (received != length) {
+    while (Wire.available() > 0) Wire.read();
     return false;
   }
   for (uint8_t i = 0; i < length; i++) {
@@ -57,10 +58,9 @@ bool IMU::readRaw(int16_t &ax, int16_t &ay, int16_t &az,
 bool IMU::begin() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_CLOCK_HZ);
 
-  // Verification de presence du capteur (non bloquant si different de 0x68 :
-  // certains clones renvoient une valeur legerement differente).
+  // Verifie le capteur physiquement connecte, sans supposer l'ID exact de ses clones.
   uint8_t whoAmI = 0;
-  if (!readRegisters(REG_WHO_AM_I, &whoAmI, 1)) {
+  if (!readRegisters(REG_WHO_AM_I, &whoAmI, 1) || (whoAmI & 0x7Eu) != 0x68u) {
     return false;
   }
 
@@ -105,6 +105,10 @@ void IMU::calibrationSample() {
   _sumGy += gy / GYRO_SENSITIVITY_LSB_PER_DPS;
   _sumGz += gz / GYRO_SENSITIVITY_LSB_PER_DPS;
   _calibSamples++;
+}
+
+bool IMU::calibrationValid(uint32_t minimumSamples) const {
+  return minimumSamples > 0 && _calibSamples >= minimumSamples;
 }
 
 void IMU::calibrationFinalize() {

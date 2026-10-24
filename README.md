@@ -322,7 +322,7 @@ FAIL --> MIX
 
 # Repository Structure
 
-The repository currently contains a single active hardware generation (`Ardu-Citron-3`), organized by subsystem.
+The repository contains the active aircraft project, its design documents, and the Python dependencies for its development tools.
 
 ```text
 Ardu-Citron
@@ -348,9 +348,7 @@ Ardu-Citron
 │       evaluate_onnx.py, run_rust_benchmark.py, aruco_detector.py, Prepare.py, ...
 │
 ├── Docs/                             Design documents (specifications, speed estimation)
-│
-├── Commande.txt                      Personal notes / recurring shell commands
-├── sauvegarde_git.sh                 Convenience script to auto-commit & push
+├── requirements.txt                  Python dependencies for project tools
 └── README.md
 ```
 

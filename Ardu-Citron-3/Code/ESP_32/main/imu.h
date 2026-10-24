@@ -43,6 +43,8 @@ public:
   void calibrationReset();
   void calibrationSample();
   void calibrationFinalize();
+  uint32_t calibrationSampleCount() const { return _calibSamples; }
+  bool calibrationValid(uint32_t minimumSamples) const;
 
   // Lit un echantillon et lui applique les offsets de calibration.
   // Retourne false en cas d'erreur de communication I2C.

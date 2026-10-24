@@ -17,7 +17,7 @@
 #define ENABLE_KALMAN        true   // Filtre de Kalman pour l'estimation d'attitude
 #define ENABLE_FAILSAFE      true   // Architecture de failsafe (prete, RC pas encore branche)
 #define ENABLE_BUZZER        true   // Retours sonores (calibration, etats)
-#define ENABLE_UART_BRIDGE   true   // Reserve pour la future liaison Raspberry Pi
+#define ENABLE_UART_BRIDGE   true   // Protocole binaire versionne sur UART2 (Pi)
 
 // ------------------------------------------------------------
 // BROCHAGE
@@ -35,7 +35,9 @@ constexpr uint8_t PIN_SERVO_3 = 14;
 // Buzzer passif
 constexpr uint8_t PIN_BUZZER = 13;
 
-// UART reserve pour le futur Raspberry Pi : Serial (TX0/RX0) utilise directement.
+// UART2 dedie au Raspberry Pi : conserve UART0 pour flash/console de debug.
+constexpr uint8_t PIN_UART_PI_RX = 16;
+constexpr uint8_t PIN_UART_PI_TX = 17;
 
 // ------------------------------------------------------------
 // CONSIGNES D'ATTITUDE (setpoints) - tres facilement modifiables
@@ -51,7 +53,7 @@ constexpr uint32_t FREQ_IMU_HZ      = 500;  // Lecture MPU6050
 constexpr uint32_t FREQ_KALMAN_HZ   = 500;  // Fusion Kalman (couplee a la lecture IMU)
 constexpr uint32_t FREQ_PID_HZ      = 200;  // Boucle PID
 constexpr uint32_t FREQ_SERVO_HZ    = 50;   // Sortie servos
-constexpr uint32_t FREQ_UART_RPI_HZ = 10;   // Reserve future liaison Raspberry Pi
+constexpr uint32_t FREQ_UART_RPI_HZ = 100;  // Drain du parseur Pi (sans attente bloquante)
 constexpr uint32_t FREQ_BUZZER_HZ   = 10;  // Frequence de mise a jour de la tache buzzer
 
 constexpr uint32_t PERIOD_IMU_US      = 1000000UL / FREQ_IMU_HZ;
@@ -64,10 +66,11 @@ constexpr uint32_t PERIOD_BUZZER_US   = 1000000UL / FREQ_BUZZER_HZ;
 // ------------------------------------------------------------
 // DEMARRAGE / CALIBRATION
 // ------------------------------------------------------------
-constexpr uint32_t CALIBRATION_DURATION_MS    = 10000; // 5 s, planeur immobile
+constexpr uint32_t CALIBRATION_DURATION_MS    = 10000; // 10 s, planeur immobile
 constexpr uint32_t CALIBRATION_BEEP_PERIOD_MS = 500;  // Bip court toutes les 500 ms
 constexpr uint32_t CALIBRATION_BEEP_DURATION_MS = 60;
-constexpr uint16_t CALIBRATION_SAMPLE_COUNT   = 400;  // Echantillons moyennes pour les offsets
+constexpr uint16_t CALIBRATION_SAMPLE_COUNT   = 400;  // Echantillons moyens demandes
+constexpr uint16_t CALIBRATION_MIN_SAMPLE_COUNT = 360; // Refus si plus de 10% sont perdus
 
 // ------------------------------------------------------------
 // IMU - MPU6050
@@ -151,30 +154,16 @@ constexpr MixingPreset ACTIVE_MIXING_PRESET = MixingPreset::STANDARD_AIL_ELEV_RU
 // ------------------------------------------------------------
 // FAILSAFE
 // ------------------------------------------------------------
-// Le recepteur RC n'est pas encore cable. RC_RECEIVER_CONNECTED permet de
-// garder l'architecture de failsafe prete sans qu'elle se declenche
-// immediatement faute de signal. A passer a "true" des que la lecture RC
-// reelle sera implementee (elle devra alors appeler failsafe.notifySignalReceived()).
-constexpr bool RC_RECEIVER_CONNECTED = false;
+// Lecture RC PWM active sur GPIO34/35/32/33. L'armement est interdit tant que
+// les quatre voies valides n'ont pas été vues dans les 250 dernières ms.
+constexpr bool RC_RECEIVER_CONNECTED = true;
 constexpr uint32_t FAILSAFE_TIMEOUT_MS = 500; // Duree sans signal avant declenchement
 
 // ------------------------------------------------------------
-// UART - FUTUR RASPBERRY PI
+// UART2 - PROTOCOLE VERSIONNE RASPBERRY PI
 // ------------------------------------------------------------
 constexpr uint32_t UART_BAUD_RATE = 115200;
-
-// Structure de donnees prevue pour les futures trames envoyees par le
-// Raspberry Pi (vision, ~10 Hz). Non utilisee pour l'instant, mais
-// deja definie pour preparer l'integration.
-struct RaspberryPiFrame {
-  float positionX_m;
-  float positionY_m;
-  float positionZ_m;
-  float rotationRoll_deg;
-  float rotationPitch_deg;
-  float rotationYaw_deg;
-  float detectionQuality;   // 0.0 (mauvais) a 1.0 (excellent)
-  uint32_t timestamp_ms;
-};
+constexpr uint32_t IMU_STALE_TIMEOUT_US = 100000;
+constexpr uint8_t IMU_MAX_CONSECUTIVE_ERRORS = 5;
 
 #endif // CONFIG_H

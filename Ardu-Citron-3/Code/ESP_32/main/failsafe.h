@@ -20,6 +20,7 @@ public:
   // A appeler a chaque reception d'un signal RC valide.
   // (Reserve : sera cable au futur recepteur RC.)
   void notifySignalReceived();
+  void trigger();
 
   // A appeler regulierement. Retourne true si le failsafe est actif
   // (perte de communication detectee).
@@ -30,6 +31,7 @@ public:
 private:
   uint32_t _lastSignalMs = 0;
   bool _active = false;
+  bool _latched = false;
 };
 
 #endif // FAILSAFE_H

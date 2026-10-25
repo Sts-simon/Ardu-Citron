@@ -17,6 +17,24 @@ python -m pip install -r requirements.txt
 python simulator.py
 ```
 
+### Interface Python de bureau
+
+Lancer l'interface native Tkinter (elle fait partie de Python, aucune dépendance
+supplémentaire) :
+
+```sh
+python3 sim_ui.py
+```
+
+L'interface permet d'éditer la configuration complète en JSON (avion, météo,
+capteurs, caméra, marqueurs, scénarios RC, navigation), de choisir la durée,
+de lancer le simulateur et de consulter la courbe ainsi que les fichiers
+produits. Les paramètres utilisés et résultats sont enregistrés dans
+`output-ui/latest/`. L'Auto reste désactivé par défaut et aucun matériel n'est
+commandé. Un environnement de bureau avec Tkinter est nécessaire pour afficher
+la fenêtre; les tests de simulation restent exécutables sans interface avec
+`python3 simulator.py`.
+
 Une sortie plus courte peut être exécutée avec :
 
 ```sh
